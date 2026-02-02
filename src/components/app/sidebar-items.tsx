@@ -1,9 +1,11 @@
 import { BarChart3, ClipboardList, Layers, Shield, Target, Users2 } from "lucide-react";
 
+import type { ReactNode } from "react";
+
 export type SidebarItem = {
   href: string;
   label: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 };
 
 export const memberSidebarItems: SidebarItem[] = [
