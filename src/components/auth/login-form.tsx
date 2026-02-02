@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -18,10 +18,8 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export function LoginForm() {
+export function LoginForm({ next = "/app" }: { next?: string }) {
   const router = useRouter();
-  const search = useSearchParams();
-  const next = search.get("next") ?? "/app";
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [serverError, setServerError] = useState<string | null>(null);
