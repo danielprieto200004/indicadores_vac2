@@ -44,7 +44,7 @@ const SelectContent = React.forwardRef<
       )}
       {...props}
     >
-      <SelectPrimitive.Viewport className="max-h-[var(--radix-select-content-available-height)] p-1">
+      <SelectPrimitive.Viewport className="max-h-[min(var(--radix-select-content-available-height),280px)] overflow-y-auto p-1">
         {children}
       </SelectPrimitive.Viewport>
     </SelectPrimitive.Content>

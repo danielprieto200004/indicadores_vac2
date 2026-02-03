@@ -39,13 +39,12 @@ export function SelectField({
 
   return (
     <>
-      {/* Radix Select soporta `name/required` y renderiza un input nativo oculto para forms */}
+      {/* Radix Select no envía el valor en el submit; usamos un input oculto con el valor actual */}
+      <input type="hidden" name={name} value={value} required={required} />
       <Select
         value={value}
         onValueChange={setValue}
         disabled={disabled}
-        name={name}
-        required={required}
       >
         <SelectTrigger title={selectedLabel || placeholder} className="text-left">
           <SelectValue

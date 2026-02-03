@@ -20,6 +20,9 @@ type Item = {
   meta_desc: string;
 };
 
+const selectClassName =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
 export function AreaStrategicChallengesForm({
   macroOptions,
   areaOptions,
@@ -65,13 +68,20 @@ export function AreaStrategicChallengesForm({
             </div>
 
             <div className="space-y-2">
-              <Label>Área</Label>
-              <SelectField
+              <Label htmlFor="area_id">Área</Label>
+              <select
+                id="area_id"
                 name="area_id"
-                placeholder="Selecciona un área…"
                 required
-                options={areaOptions}
-              />
+                className={selectClassName}
+              >
+                <option value="">Selecciona un área…</option>
+                {areaOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">
