@@ -9,16 +9,18 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+type AreaRef = { id: string; name: string; type: string } | null;
 type ProfileAreaRow = {
   area_id: string;
   is_primary: boolean;
-  areas: { id: string; name: string; type: string } | null;
+  areas: AreaRef | AreaRef[];
 };
 
 function toUserAreas(pa: ProfileAreaRow[] | null): { area_id: string; area_name: string; area_type: string; is_primary: boolean }[] {
   if (!pa || !Array.isArray(pa)) return [];
   return pa.map((p) => {
-    const a = p.areas;
+    const raw = p.areas;
+    const a = Array.isArray(raw) ? raw[0] ?? null : raw;
     return {
       area_id: p.area_id,
       area_name: a?.name ?? "—",
@@ -142,7 +144,7 @@ export default async function AdminUsersPage() {
             </TableHeader>
             <TableBody>
               {(allProfiles ?? []).map((u) => {
-                const pa = (u as { profile_areas?: ProfileAreaRow[] }).profile_areas;
+                const pa = (u as unknown as { profile_areas?: ProfileAreaRow[] }).profile_areas;
                 const userAreas = toUserAreas(pa ?? null);
                 const roleLabel = u.role === "admin" ? "Admin" : u.role === "member" ? "Member" : "Pendiente";
                 return (
