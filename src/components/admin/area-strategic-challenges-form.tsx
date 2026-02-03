@@ -13,8 +13,7 @@ import { adminCreateAreaChallenges } from "@/app/app/admin/actions";
 type MacroOption = { value: string; label: string };
 type AreaOption = { value: string; label: string };
 
-type Item = {
-  reto_area: string;
+type IndicatorItem = {
   indicador_area: string;
   meta_area: string;
   meta_desc: string;
@@ -32,23 +31,24 @@ export function AreaStrategicChallengesForm({
   areaOptions: AreaOption[];
   defaultYear: number;
 }) {
-  const [items, setItems] = useState<Item[]>([
-    { reto_area: "", indicador_area: "", meta_area: "", meta_desc: "" },
+  const [retoArea, setRetoArea] = useState("");
+  const [indicators, setIndicators] = useState<IndicatorItem[]>([
+    { indicador_area: "", meta_area: "", meta_desc: "" },
   ]);
 
-  const canRemove = items.length > 1;
+  const canRemoveIndicator = indicators.length > 1;
 
   const yearDefault = useMemo(() => String(defaultYear), [defaultYear]);
 
-  function addItem() {
-    setItems((prev) => [
+  function addIndicator() {
+    setIndicators((prev) => [
       ...prev,
-      { reto_area: "", indicador_area: "", meta_area: "", meta_desc: "" },
+      { indicador_area: "", meta_area: "", meta_desc: "" },
     ]);
   }
 
-  function removeItem(idx: number) {
-    setItems((prev) => prev.filter((_, i) => i !== idx));
+  function removeIndicator(idx: number) {
+    setIndicators((prev) => prev.filter((_, i) => i !== idx));
   }
 
   return (
@@ -90,32 +90,43 @@ export function AreaStrategicChallengesForm({
             </div>
           </div>
           <div className="mt-3 text-xs text-muted-foreground">
-            Siguiente: agrega uno o más retos estratégicos del área vinculados a este reto macro.
+            Luego define un reto del área y sus indicadores (puede ser uno o varios).
           </div>
         </div>
       </div>
 
       <div className="rounded-xl border border-input bg-background p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold">Paso 2 — Retos del área</div>
-            <div className="text-xs text-muted-foreground">
-              Agrega uno o varios retos del área. Usa “Quitar” si agregaste uno por error.
-            </div>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={addItem}>
-            Agregar otro reto estratégico
+        <div className="text-sm font-semibold">Paso 2 — Reto del área e indicadores</div>
+        <div className="mt-3 space-y-2">
+          <Label htmlFor="reto_area">Reto del área (común a todos los indicadores)</Label>
+          <Textarea
+            id="reto_area"
+            name="reto_area"
+            placeholder="Describe el reto del área (ej.: Reducir tiempos de respuesta)"
+            required
+            value={retoArea}
+            onChange={(e) => setRetoArea(e.target.value)}
+          />
+        </div>
+        <div className="mt-4 text-xs text-muted-foreground">
+          Agrega uno o varios indicadores para este reto. Cada indicador tendrá su propia meta y seguimiento.
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <span className="text-sm font-medium">Indicadores del área</span>
+          <Button type="button" variant="outline" size="sm" onClick={addIndicator}>
+            Agregar otro indicador
           </Button>
         </div>
 
         <div className="mt-4 grid gap-4">
           <Accordion type="multiple" className="grid gap-3">
-            {items.map((_, idx) => (
-              <AccordionItem key={idx} value={`item-${idx}`}>
+            {indicators.map((_, idx) => (
+              <AccordionItem key={idx} value={`indicator-${idx}`}>
                 <div className="flex items-stretch gap-2">
                   <div className="min-w-0 flex-1">
                     <AccordionTrigger>
-                      <div className="truncate">Reto #{idx + 1}</div>
+                      <div className="truncate">Indicador #{idx + 1}</div>
                     </AccordionTrigger>
                   </div>
                   <div className="flex items-center pr-2">
@@ -123,8 +134,8 @@ export function AreaStrategicChallengesForm({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      disabled={!canRemove}
-                      onClick={() => removeItem(idx)}
+                      disabled={!canRemoveIndicator}
+                      onClick={() => removeIndicator(idx)}
                     >
                       Quitar
                     </Button>
@@ -133,31 +144,22 @@ export function AreaStrategicChallengesForm({
                 <AccordionContent>
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-2 md:col-span-2">
-                      <Label>Reto del área</Label>
-                      <Textarea
-                        name="reto_area"
-                        placeholder="Describe el reto del área (texto más amplio si lo necesitas)"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Indicador del área</Label>
+                      <Label>Nombre del indicador</Label>
                       <Textarea
                         name="indicador_area"
-                        placeholder="Indicador asociado (puede ser texto largo)"
+                        placeholder="Ej.: % de solicitudes resueltas en &lt; 24 h"
                         required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Meta del área (valor)</Label>
+                      <Label>Meta (valor numérico)</Label>
                       <Input name="meta_area" type="number" step="0.01" placeholder="0" />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Meta del área (descripción)</Label>
-                      <Input name="meta_desc" placeholder="Descripción corta de la meta" />
+                      <Label>Meta (descripción corta)</Label>
+                      <Input name="meta_desc" placeholder="Ej.: 90% en el año" />
                     </div>
                   </div>
                 </AccordionContent>
@@ -168,12 +170,11 @@ export function AreaStrategicChallengesForm({
       </div>
 
       <div className="flex items-center gap-3">
-        <Button type="submit">Guardar retos del área</Button>
+        <Button type="submit">Guardar reto e indicadores</Button>
         <div className="text-xs text-muted-foreground">
-          Se crearán {items.length} registro(s).
+          Se creará 1 reto del área con {indicators.length} indicador(es) ({indicators.length} registro(s) en total).
         </div>
       </div>
     </form>
   );
 }
-

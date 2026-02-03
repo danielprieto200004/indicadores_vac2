@@ -103,14 +103,14 @@ export async function adminCreateAreaChallenges(formData: FormData) {
   const macro_id = asText(formData.get("macro_id"));
   const area_id = asText(formData.get("area_id"));
   const year = asIntOrNull(formData.get("year")) ?? new Date().getFullYear();
+  const reto_area = asText(formData.get("reto_area"));
 
-  const retos = formData.getAll("reto_area").map((v) => asText(v));
   const indicadores = formData.getAll("indicador_area").map((v) => asText(v));
   const metas = formData.getAll("meta_area").map((v) => asNumberOrNull(v));
   const metaDescs = formData.getAll("meta_desc").map((v) => asText(v) || null);
 
-  const count = Math.max(retos.length, indicadores.length, metas.length, metaDescs.length);
-  if (!macro_id || !area_id || !count) throw new Error("Faltan campos");
+  const count = indicadores.length;
+  if (!macro_id || !area_id || !reto_area || !count) throw new Error("Faltan campos");
 
   const supabase = await createSupabaseServerClient();
   const {
@@ -132,10 +132,9 @@ export async function adminCreateAreaChallenges(formData: FormData) {
   const baseOrdinal = typeof maxRow?.ordinal === "number" ? maxRow.ordinal : 0;
 
   const rows = Array.from({ length: count }).map((_, i) => {
-    const reto_area = retos[i] ?? "";
     const indicador_area = indicadores[i] ?? "";
-    if (!reto_area || !indicador_area) {
-      throw new Error("Cada reto del área debe tener reto e indicador");
+    if (!indicador_area) {
+      throw new Error("Cada indicador debe tener nombre");
     }
 
     return {
