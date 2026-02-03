@@ -1,4 +1,5 @@
 import { adminCreateMacro } from "@/app/app/admin/actions";
+import { MacroEditActions } from "@/components/admin/macro-edit-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -138,6 +139,7 @@ export default async function AdminMacrosPage() {
                 <TableHead>Indicador</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Metas</TableHead>
+                <TableHead className="w-[100px]">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -165,6 +167,22 @@ export default async function AdminMacrosPage() {
                         ) : null}
                       </div>
                     ) : null}
+                  </TableCell>
+                  <TableCell>
+                    <MacroEditActions
+                      macro={{
+                        id: m.id,
+                        year: m.year,
+                        area_responsable_text: m.area_responsable_text,
+                        reto: m.reto,
+                        indicador: m.indicador,
+                        indicator_kind: m.indicator_kind ?? "numerico",
+                        meta_1_value: m.meta_1_value,
+                        meta_1_desc: m.meta_1_desc,
+                        meta_2_value: m.meta_2_value,
+                        meta_2_desc: m.meta_2_desc,
+                      }}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,4 +1,5 @@
 import { adminCreateArea } from "@/app/app/admin/actions";
+import { AreaEditActions } from "@/components/admin/area-edit-actions";
 import { SelectField } from "@/components/app/select-field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,6 +68,7 @@ export default async function AdminAreasPage() {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Activa</TableHead>
+                <TableHead className="w-[100px]">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -75,6 +77,9 @@ export default async function AdminAreasPage() {
                   <TableCell className="font-medium">{a.name}</TableCell>
                   <TableCell>{a.type}</TableCell>
                   <TableCell>{a.active ? "Sí" : "No"}</TableCell>
+                  <TableCell>
+                    <AreaEditActions area={a} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createClient } from "@supabase/supabase-js";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -216,5 +217,162 @@ export async function adminApproveUser(formData: FormData) {
   }
 
   revalidatePath("/app/admin/usuarios");
+}
+
+// --- Edición: Áreas ---
+export async function adminUpdateArea(formData: FormData) {
+  const id = asText(formData.get("id"));
+  const name = asText(formData.get("name"));
+  const type = asText(formData.get("type"));
+  const activeRaw = formData.get("active");
+  const active = activeRaw === "1" || activeRaw === "true" || activeRaw === "on";
+  if (!id || !name || !type) throw new Error("Faltan campos");
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("areas")
+    .update({ name, type, active })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app/admin/areas");
+}
+
+// --- Edición: Retos macro ---
+export async function adminUpdateMacro(formData: FormData) {
+  const id = asText(formData.get("id"));
+  const area_responsable_text = asText(formData.get("area_responsable_text"));
+  const reto = asText(formData.get("reto"));
+  const indicador = asText(formData.get("indicador"));
+  const indicator_kind_in = asText(formData.get("indicator_kind")) || "numerico";
+  const indicator_kind = indicator_kind_in === "porcentaje" ? "porcentaje" : "numerico";
+  const meta_1_value = asNumberOrNull(formData.get("meta_1_value"));
+  const meta_1_desc = asText(formData.get("meta_1_desc")) || null;
+  const meta_2_value = asNumberOrNull(formData.get("meta_2_value"));
+  const meta_2_desc = asText(formData.get("meta_2_desc")) || null;
+  const year = asIntOrNull(formData.get("year")) ?? new Date().getFullYear();
+  if (!id || !area_responsable_text || !reto || !indicador) throw new Error("Faltan campos");
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("macro_challenges")
+    .update({
+      area_responsable_text,
+      reto,
+      indicador,
+      indicator_kind,
+      meta_1_value,
+      meta_1_desc,
+      meta_2_value,
+      meta_2_desc,
+      year,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app/admin/macros");
+}
+
+// --- Edición: Usuarios (perfil + áreas) ---
+export async function adminUpdateProfile(formData: FormData) {
+  const profile_id = asText(formData.get("profile_id"));
+  const full_name = asText(formData.get("full_name"));
+  const role = asText(formData.get("role")) || "member";
+  if (!profile_id) throw new Error("Falta perfil");
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: full_name || null, role })
+    .eq("id", profile_id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app/admin/usuarios");
+}
+
+export async function adminSetUserPrimaryArea(profile_id: string, area_id: string) {
+  if (!profile_id || !area_id) throw new Error("Faltan campos");
+  const supabase = await createSupabaseServerClient();
+  // Quitar primary de todas las áreas del usuario
+  await supabase
+    .from("profile_areas")
+    .update({ is_primary: false })
+    .eq("profile_id", profile_id);
+  // Marcar esta área como primary
+  const { error } = await supabase
+    .from("profile_areas")
+    .update({ is_primary: true })
+    .eq("profile_id", profile_id)
+    .eq("area_id", area_id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app/admin/usuarios");
+}
+
+export async function adminAddUserArea(formData: FormData) {
+  const profile_id = asText(formData.get("profile_id"));
+  const area_id = asText(formData.get("area_id"));
+  if (!profile_id || !area_id) throw new Error("Faltan campos");
+  const supabase = await createSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from("profile_areas")
+    .select("profile_id")
+    .eq("profile_id", profile_id)
+    .eq("area_id", area_id)
+    .maybeSingle();
+  if (existing) throw new Error("El usuario ya tiene asignada esta área");
+  const { error } = await supabase
+    .from("profile_areas")
+    .insert({ profile_id, area_id, is_primary: false });
+  if (error) throw new Error(error.message);
+  revalidatePath("/app/admin/usuarios");
+}
+
+export async function adminRemoveUserArea(profile_id: string, area_id: string) {
+  if (!profile_id || !area_id) throw new Error("Faltan campos");
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("profile_areas")
+    .delete()
+    .eq("profile_id", profile_id)
+    .eq("area_id", area_id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app/admin/usuarios");
+}
+
+// --- Eliminar: Área (primero quitar asignaciones de usuarios) ---
+export async function adminDeleteArea(id: string) {
+  if (!id) throw new Error("Falta id");
+  const supabase = await createSupabaseServerClient();
+  await supabase.from("profile_areas").delete().eq("area_id", id);
+  const { error } = await supabase.from("areas").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app/admin/areas");
+}
+
+// --- Eliminar: Usuario (borra de Auth y cascada a profiles/profile_areas) ---
+export async function adminDeleteUser(profileId: string) {
+  if (!profileId) throw new Error("Falta id de usuario");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) throw new Error("Configuración de Supabase faltante");
+  const admin = createClient(url, serviceKey);
+  const { error } = await admin.auth.admin.deleteUser(profileId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app/admin/usuarios");
+}
+
+// --- Eliminar: Reto macro (cascada elimina aportes vinculados) ---
+export async function adminDeleteMacro(id: string) {
+  if (!id) throw new Error("Falta id");
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("macro_challenges").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app/admin/macros");
+}
+
+// --- Eliminar: Reto del área (aporte) ---
+export async function adminDeleteAreaContribution(id: string) {
+  if (!id) throw new Error("Falta id");
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("area_contributions").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/app/admin/aportes");
 }
 

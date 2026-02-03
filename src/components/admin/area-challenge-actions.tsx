@@ -3,7 +3,11 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import { adminSetAreaChallengeActive, adminUpdateAreaChallenge } from "@/app/app/admin/actions";
+import {
+  adminDeleteAreaContribution,
+  adminSetAreaChallengeActive,
+  adminUpdateAreaChallenge,
+} from "@/app/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -28,6 +32,7 @@ export function AreaChallengeActions({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [busy, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +75,19 @@ export function AreaChallengeActions({
     });
   }
 
+  function onDelete() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await adminDeleteAreaContribution(row.id);
+        setDeleteOpen(false);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error");
+      }
+    });
+  }
+
   return (
     <div className="flex flex-wrap gap-2">
       <Button type="button" size="sm" variant="outline" onClick={() => setOpen(true)}>
@@ -83,6 +101,9 @@ export function AreaChallengeActions({
         disabled={busy}
       >
         {row.active ? "Desactivar" : "Activar"}
+      </Button>
+      <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}>
+        Eliminar
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -132,6 +153,26 @@ export function AreaChallengeActions({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Eliminar reto del área</DialogTitle>
+            <DialogDescription>
+              ¿Eliminar este reto del área? Se perderán los avances registrados. Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="destructive" onClick={onDelete} disabled={busy}>
+              {busy ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
