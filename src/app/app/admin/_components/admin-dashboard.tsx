@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AlertTriangle, BarChart3, Building2, CheckCircle2, FileText, Flame, Layers, TrendingUp } from "lucide-react";
 
+import { MacroCardsWithDialog } from "@/app/app/admin/_components/macro-cards-with-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -132,7 +133,7 @@ export async function AdminDashboard({
       supabase
         .from("area_contributions")
         .select(
-          "id,year,macro_id,area_id,indicador_area,reto_area,meta_area,active,areas(name,type),macro_challenges(reto)"
+          "id,year,macro_id,area_id,indicador_area,reto_area,meta_area,meta_desc,active,areas(name,type),macro_challenges(reto)"
         )
         .eq("active", true)
         .eq("year", selectedYear)
@@ -161,6 +162,7 @@ export async function AdminDashboard({
     indicador_area: string;
     reto_area: string;
     meta_area: number | null;
+    meta_desc: string | null;
     active: boolean;
     areas: { name: string; type: string } | { name: string; type: string }[] | null;
     macro_challenges: { reto: string } | { reto: string }[] | null;
@@ -303,6 +305,32 @@ export async function AdminDashboard({
       const bp = typeof b.macro_percent_strict === "number" ? b.macro_percent_strict : -1;
       return bp - ap;
     });
+
+  const macroCardsWithDetails = macroCards.map((m) => {
+    const rows = contribByMacro.get(m.id) ?? [];
+    const contributionsDetail = rows.map((c) => {
+      const area = Array.isArray(c.areas) ? c.areas[0] : c.areas;
+      const latest = latestById.get(c.id) ?? null;
+      return {
+        id: c.id,
+        areaName: area?.name ?? "—",
+        areaType: area?.type ?? "",
+        reto_area: c.reto_area ?? "",
+        indicador_area: c.indicador_area ?? "",
+        meta_area: c.meta_area ?? null,
+        meta_desc: c.meta_desc ?? null,
+        latest: latest
+          ? {
+              traffic_light: latest.traffic_light,
+              percent: latest.percent,
+              current_value: latest.current_value,
+              period_end: latest.period_end,
+            }
+          : null,
+      };
+    });
+    return { ...m, contributionsDetail };
+  });
 
   const alerts = contribRows
     .map((c) => {
@@ -493,80 +521,7 @@ export async function AdminDashboard({
             {!macroCards.length ? (
               <div className="text-sm text-muted-foreground">Aún no hay Retos Macro VAC para este año.</div>
             ) : (
-              <div className="max-h-[420px] overflow-y-auto pr-2">
-                <div className="grid gap-3">
-                  {macroCards.map((m) => (
-                  <div key={m.id} className="rounded-xl border border-input bg-background p-4">
-                    <div className="grid gap-3 lg:grid-cols-12 lg:items-start">
-                      <div className="min-w-0 lg:col-span-8">
-                        <div className="truncate text-sm font-semibold" title={m.reto}>
-                          {m.reto}
-                        </div>
-                        <div className="mt-1 line-clamp-2 text-xs text-muted-foreground" title={m.indicador}>
-                          {m.indicador}
-                        </div>
-                        <div className="mt-3 line-clamp-2 text-xs text-muted-foreground">
-                          <span className="font-medium">Metas:</span>{" "}
-                          <span className="text-foreground">
-                            {m.meta_1_value ?? "—"}
-                            {m.meta_1_desc ? ` — ${m.meta_1_desc}` : ""}
-                          </span>
-                          {m.meta_2_value !== null || m.meta_2_desc ? (
-                            <span className="text-foreground">
-                              {" "}
-                              · {m.meta_2_value ?? "—"}
-                              {m.meta_2_desc ? ` — ${m.meta_2_desc}` : ""}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-3 lg:col-span-4 lg:grid-cols-1">
-                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-2">
-                          <TinyStat label="Áreas que aportan" value={`${m.contributing_areas_count}`} />
-                          <TinyStat label="Sin aporte" value={`${m.missing_areas_count}`} />
-                        </div>
-                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-2">
-                          <TinyStat label="Retos del área" value={`${m.contributions_count}`} />
-                          <TinyStat
-                            label="Completos"
-                            value={`${m.contributions_completed_count}/${m.contributions_count}`}
-                          />
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <TinyStat
-                            label="Avance (estricto)"
-                            value={
-                              typeof m.macro_percent_strict === "number"
-                                ? `${m.macro_percent_strict.toFixed(2)}%`
-                                : "—"
-                            }
-                          />
-                          {m.macro_traffic_light ? (
-                            <Badge
-                              variant={
-                                m.macro_traffic_light === "rojo"
-                                  ? "destructive"
-                                  : m.macro_traffic_light === "naranja"
-                                    ? "secondary"
-                                    : "default"
-                              }
-                            >
-                              {m.macro_traffic_light === "rojo"
-                                ? "En riesgo"
-                                : m.macro_traffic_light === "naranja"
-                                  ? "En proceso"
-                                  : "Completo"}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">Sin avances</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  ))}
-                </div>
-              </div>
+              <MacroCardsWithDialog macroCardsWithDetails={macroCardsWithDetails} />
             )}
           </CardContent>
         </Card>
