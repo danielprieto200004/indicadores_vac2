@@ -50,8 +50,15 @@ export default async function MacrosPage() {
             .in("contribution_id", ids)
         : { data: [] };
 
-    const latestById = new Map<string, (typeof latestRows)[number]>();
-    (latestRows ?? []).forEach((r) => latestById.set(r.contribution_id, r));
+    type LatestRow = {
+      contribution_id: string;
+      percent: number | null;
+      traffic_light: string | null;
+      period_end: string | null;
+      current_value: number | null;
+    };
+    const latestById = new Map<string, LatestRow>();
+    (latestRows ?? []).forEach((r: LatestRow) => latestById.set(r.contribution_id, r));
 
     for (const c of contribRows) {
       const key = `${c.macro_id}_${c.year}`;
