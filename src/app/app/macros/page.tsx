@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 import { MacrosConsolidatedTable } from "./macros-consolidated-table";
 import type { MacroRollupRow } from "./macros-consolidated-table";
-import type { ContributionDetail } from "@/app/app/admin/_components/macro-contributions-dialog";
+import type { ContributionDetail, TrafficLight } from "@/app/app/admin/_components/macro-contributions-dialog";
 
 export default async function MacrosPage() {
   const supabase = await createSupabaseServerClient();
@@ -75,7 +75,7 @@ export default async function MacrosPage() {
         meta_desc: c.meta_desc ?? null,
         latest: latest
           ? {
-              traffic_light: latest.traffic_light,
+              traffic_light: (latest.traffic_light ?? null) as TrafficLight | null,
               percent: latest.percent,
               current_value: latest.current_value,
               period_end: latest.period_end,
