@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { deleteProgressUpdate } from "@/app/app/aportes/[id]/actions";
+import { DeleteButton } from "@/components/member/delete-update-button";
 
 function statusLabel(t: "verde" | "naranja" | "rojo") {
   return t === "rojo" ? "No realizado" : t === "naranja" ? "En proceso" : "Completo";
@@ -37,9 +39,17 @@ export default async function AporteDetailPage({
 
   const { data: updates } = await supabase
     .from("progress_updates")
-    .select("id,period_start,period_end,percent,current_value,traffic_light,comment,evidence_path,created_at")
+    .select("id,period_start,period_end,percent,current_value,traffic_light,comment,evidence_path,evidence_link,created_at,created_by")
     .eq("contribution_id", id)
     .order("created_at", { ascending: false });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
+    : { data: null };
+  const isAdmin = profile?.role === "admin";
 
   const latest = updates?.[0] ?? null;
   const meta = typeof contribution.meta_area === "number" ? contribution.meta_area : null;
@@ -181,43 +191,62 @@ export default async function AporteDetailPage({
                   <TableHead>Semáforo</TableHead>
                   <TableHead>Comentario</TableHead>
                   <TableHead>Evidencia</TableHead>
+                  <TableHead className="text-right">Acción</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {updates.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell className="font-medium">
-                      {u.period_end}
-                    </TableCell>
-                    <TableCell>{u.percent}%</TableCell>
-                    <TableCell>{u.current_value ?? "—"}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          u.traffic_light === "rojo"
-                            ? "destructive"
-                            : u.traffic_light === "naranja"
-                              ? "secondary"
-                              : "default"
-                        }
-                      >
-                        {statusLabel(u.traffic_light)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[320px]">{u.comment ?? "—"}</TableCell>
-                    <TableCell>
-                      {u.evidence_path ? (
-                        <Button asChild size="sm" variant="outline">
-                          <a href={`/app/evidence/${u.evidence_path}`} target="_blank" rel="noreferrer">
-                            Ver
-                          </a>
-                        </Button>
-                      ) : (
-                        "—"
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {updates.map((u) => {
+                  const canDelete = isAdmin || u.created_by === user?.id;
+                  return (
+                    <TableRow key={u.id}>
+                      <TableCell className="font-medium">
+                        {u.period_end}
+                      </TableCell>
+                      <TableCell>{u.percent}%</TableCell>
+                      <TableCell>{u.current_value ?? "—"}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            u.traffic_light === "rojo"
+                              ? "destructive"
+                              : u.traffic_light === "naranja"
+                                ? "secondary"
+                                : "default"
+                          }
+                        >
+                          {statusLabel(u.traffic_light)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="max-w-[320px]">{u.comment ?? "—"}</TableCell>
+                      <TableCell>
+                        {u.evidence_path ? (
+                          <Button asChild size="sm" variant="outline">
+                            <a href={`/app/evidence/${u.evidence_path}`} target="_blank" rel="noreferrer">
+                              Ver archivo
+                            </a>
+                          </Button>
+                        ) : u.evidence_link ? (
+                          <Button asChild size="sm" variant="outline">
+                            <a href={u.evidence_link} target="_blank" rel="noreferrer">
+                              Ver link
+                            </a>
+                          </Button>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {canDelete ? (
+                          <DeleteButton
+                            updateId={u.id}
+                            contributionId={id}
+                            action={deleteProgressUpdate}
+                          />
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

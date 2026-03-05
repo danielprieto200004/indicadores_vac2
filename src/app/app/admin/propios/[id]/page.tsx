@@ -37,7 +37,7 @@ export default async function AdminOwnIndicatorDetailPage({
 
   const { data: updates } = await supabase
     .from("area_own_updates")
-    .select("id,report_date,percent,current_value,traffic_light,comment,evidence_path,created_at")
+    .select("id,report_date,percent,current_value,traffic_light,comment,evidence_path,evidence_link,created_at")
     .eq("indicator_id", id)
     .order("created_at", { ascending: false });
 
@@ -154,7 +154,13 @@ export default async function AdminOwnIndicatorDetailPage({
                           {u.evidence_path ? (
                             <Button asChild size="sm" variant="outline" className="h-9">
                               <a href={`/app/evidence/${u.evidence_path}`} target="_blank" rel="noreferrer">
-                                Abrir
+                                Ver archivo
+                              </a>
+                            </Button>
+                          ) : u.evidence_link ? (
+                            <Button asChild size="sm" variant="outline" className="h-9">
+                              <a href={u.evidence_link} target="_blank" rel="noreferrer">
+                                Ver link
                               </a>
                             </Button>
                           ) : (

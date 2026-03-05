@@ -28,6 +28,7 @@ export async function createProgressUpdate(formData: FormData) {
     "naranja") as TrafficLight;
   const comment = asText(formData.get("comment"));
   const evidence_path = asText(formData.get("evidence_path")) || null;
+  const evidence_link = asText(formData.get("evidence_link")) || null;
 
   if (!id || !contribution_id || !report_date) {
     throw new Error("Faltan campos obligatorios");
@@ -91,8 +92,80 @@ export async function createProgressUpdate(formData: FormData) {
     traffic_light,
     comment,
     evidence_path,
+    evidence_link,
     created_by: user?.id ?? null,
   });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/app/aportes/${contribution_id}`);
+  revalidatePath(`/app/aportes`);
+  revalidatePath(`/app`);
+  revalidatePath(`/app/macros`);
+}
+
+export async function deleteProgressUpdate(formData: FormData) {
+  const update_id = asText(formData.get("update_id"));
+  const contribution_id = asText(formData.get("contribution_id"));
+
+  if (!update_id || !contribution_id) {
+    throw new Error("Faltan campos obligatorios");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado");
+
+  // Verificar que el usuario tenga permiso (pertenece al área o es admin)
+  const { data: update, error: fetchErr } = await supabase
+    .from("progress_updates")
+    .select("id,evidence_path,contribution_id,area_contributions(area_id)")
+    .eq("id", update_id)
+    .maybeSingle();
+
+  if (fetchErr) throw new Error(fetchErr.message);
+  if (!update) throw new Error("Avance no encontrado");
+
+  // Verificar permisos: el usuario debe pertenecer al área o ser admin
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const isAdmin = profile?.role === "admin";
+
+  if (!isAdmin) {
+    // Verificar que el usuario pertenezca al área
+    const contribution = Array.isArray(update.area_contributions)
+      ? update.area_contributions[0]
+      : update.area_contributions;
+    const areaId = contribution?.area_id;
+
+    if (areaId) {
+      const { data: profileArea } = await supabase
+        .from("profile_areas")
+        .select("area_id")
+        .eq("profile_id", user.id)
+        .eq("area_id", areaId)
+        .maybeSingle();
+
+      if (!profileArea) {
+        throw new Error("No tienes permiso para eliminar este avance");
+      }
+    }
+  }
+
+  // Eliminar archivo de evidencia si existe
+  if (update.evidence_path) {
+    await supabase.storage.from("evidence").remove([update.evidence_path]);
+  }
+
+  // Eliminar el avance
+  const { error } = await supabase.from("progress_updates").delete().eq("id", update_id);
 
   if (error) throw new Error(error.message);
 

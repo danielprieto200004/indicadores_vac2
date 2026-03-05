@@ -26,6 +26,7 @@ export async function createOwnUpdate(formData: FormData) {
   const traffic_light_in = (asText(formData.get("traffic_light")) || "naranja") as TrafficLight;
   const comment = asText(formData.get("comment"));
   const evidence_path = asText(formData.get("evidence_path")) || null;
+  const evidence_link = asText(formData.get("evidence_link")) || null;
 
   if (!id || !indicator_id || !report_date) {
     throw new Error("Faltan campos obligatorios");
@@ -74,8 +75,79 @@ export async function createOwnUpdate(formData: FormData) {
     traffic_light,
     comment,
     evidence_path,
+    evidence_link,
     created_by: user?.id ?? null,
   });
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/app/propios/${indicator_id}`);
+  revalidatePath(`/app/propios`);
+  revalidatePath(`/app`);
+}
+
+export async function deleteOwnUpdate(formData: FormData) {
+  const update_id = asText(formData.get("update_id"));
+  const indicator_id = asText(formData.get("indicator_id"));
+
+  if (!update_id || !indicator_id) {
+    throw new Error("Faltan campos obligatorios");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado");
+
+  // Verificar que el usuario tenga permiso (pertenece al área o es admin)
+  const { data: update, error: fetchErr } = await supabase
+    .from("area_own_updates")
+    .select("id,evidence_path,indicator_id,area_own_indicators(area_id)")
+    .eq("id", update_id)
+    .maybeSingle();
+
+  if (fetchErr) throw new Error(fetchErr.message);
+  if (!update) throw new Error("Avance no encontrado");
+
+  // Verificar permisos: el usuario debe pertenecer al área o ser admin
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const isAdmin = profile?.role === "admin";
+
+  if (!isAdmin) {
+    // Verificar que el usuario pertenezca al área
+    const indicator = Array.isArray(update.area_own_indicators)
+      ? update.area_own_indicators[0]
+      : update.area_own_indicators;
+    const areaId = indicator?.area_id;
+
+    if (areaId) {
+      const { data: profileArea } = await supabase
+        .from("profile_areas")
+        .select("area_id")
+        .eq("profile_id", user.id)
+        .eq("area_id", areaId)
+        .maybeSingle();
+
+      if (!profileArea) {
+        throw new Error("No tienes permiso para eliminar este avance");
+      }
+    }
+  }
+
+  // Eliminar archivo de evidencia si existe
+  if (update.evidence_path) {
+    await supabase.storage.from("evidence").remove([update.evidence_path]);
+  }
+
+  // Eliminar el avance
+  const { error } = await supabase.from("area_own_updates").delete().eq("id", update_id);
+
   if (error) throw new Error(error.message);
 
   revalidatePath(`/app/propios/${indicator_id}`);

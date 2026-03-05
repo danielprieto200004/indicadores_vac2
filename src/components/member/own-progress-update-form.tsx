@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent, type ChangeEvent } from "react";
 
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { SelectField } from "@/components/app/select-field";
@@ -26,8 +26,9 @@ export function OwnProgressUpdateForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [currentValueText, setCurrentValueText] = useState<string>("");
+  const [evidenceType, setEvidenceType] = useState<"file" | "link" | "none">("none");
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setBusy(true);
@@ -37,13 +38,24 @@ export function OwnProgressUpdateForm({
 
       const updateId = crypto.randomUUID();
       const file = fd.get("evidence_file");
+      const evidenceLink = String(fd.get("evidence_link") ?? "").trim();
       const filename = file instanceof File && file.name ? file.name.replaceAll("\\", "_") : "";
 
       let evidencePath = "";
-      if (file instanceof File && file.size > 0) {
+      let finalEvidenceLink = "";
+
+      if (evidenceType === "file" && file instanceof File && file.size > 0) {
         evidencePath = `${areaId}/${updateId}/${filename}`;
         const { error: upErr } = await supabase.storage.from("evidence").upload(evidencePath, file, { upsert: false });
         if (upErr) throw new Error(upErr.message);
+      } else if (evidenceType === "link" && evidenceLink) {
+        // Validar que sea una URL válida
+        try {
+          new URL(evidenceLink);
+          finalEvidenceLink = evidenceLink;
+        } catch {
+          throw new Error("El link de evidencia debe ser una URL válida (ej: https://...)");
+        }
       }
 
       const serverFd = new FormData();
@@ -59,10 +71,12 @@ export function OwnProgressUpdateForm({
         serverFd.set("percent", String(fd.get("percent") ?? ""));
       }
       if (evidencePath) serverFd.set("evidence_path", evidencePath);
+      if (finalEvidenceLink) serverFd.set("evidence_link", finalEvidenceLink);
 
       await createOwnUpdate(serverFd);
       form.reset();
       setCurrentValueText("");
+      setEvidenceType("none");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
@@ -104,7 +118,7 @@ export function OwnProgressUpdateForm({
           required={metaValue !== null}
           placeholder={metaValue !== null ? `Ej: si la meta es ${metaValue}, escribe lo alcanzado (p. ej. 0.5)` : "Valor (opcional)"}
           value={currentValueText}
-          onChange={(e) => setCurrentValueText(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setCurrentValueText(e.target.value)}
         />
       </div>
 
@@ -135,9 +149,56 @@ export function OwnProgressUpdateForm({
         ) : null}
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="evidence_file">Evidencia (opcional)</Label>
-        <Input id="evidence_file" name="evidence_file" type="file" />
+      <div className="space-y-2 md:col-span-2">
+        <Label>Evidencia (opcional)</Label>
+        <div className="space-y-3">
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="evidence_type"
+                value="none"
+                checked={evidenceType === "none"}
+                onChange={() => setEvidenceType("none")}
+                className="cursor-pointer"
+              />
+              <span className="text-sm">Sin evidencia</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="evidence_type"
+                value="file"
+                checked={evidenceType === "file"}
+                onChange={() => setEvidenceType("file")}
+                className="cursor-pointer"
+              />
+              <span className="text-sm">Subir archivo</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="evidence_type"
+                value="link"
+                checked={evidenceType === "link"}
+                onChange={() => setEvidenceType("link")}
+                className="cursor-pointer"
+              />
+              <span className="text-sm">Agregar link</span>
+            </label>
+          </div>
+          {evidenceType === "file" && (
+            <Input id="evidence_file" name="evidence_file" type="file" />
+          )}
+          {evidenceType === "link" && (
+            <Input
+              id="evidence_link"
+              name="evidence_link"
+              type="url"
+              placeholder="https://ejemplo.com/evidencia"
+            />
+          )}
+        </div>
       </div>
 
       <div className="space-y-2 md:col-span-2">
