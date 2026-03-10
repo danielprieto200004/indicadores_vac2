@@ -397,7 +397,19 @@ export async function AdminDashboard({
     .sort((a, b) => a.pct - b.pct);
 
   /* ── Alerts ── */
-  const alerts = contribRows
+  type Alert = {
+    id: string;
+    type: "contrib" | "own";
+    areaName: string;
+    indicador: string;
+    traffic: TrafficLight;
+    percent: number | null;
+    current_value: number | null;
+    meta: number | null;
+    href: string;
+  };
+
+  const alerts: Alert[] = contribRows
     .map((c) => {
       const latest = latestById.get(c.id) ?? null;
       if (!latest?.traffic_light) return null;
@@ -407,7 +419,7 @@ export async function AdminDashboard({
       )
         return null;
       const area = Array.isArray(c.areas) ? c.areas[0] : c.areas;
-      return {
+      const alert: Alert = {
         id: c.id,
         type: "contrib" as const,
         areaName: area?.name ?? "—",
@@ -418,20 +430,11 @@ export async function AdminDashboard({
         meta: c.meta_area,
         href: `/app/aportes/${c.id}`,
       };
+      return alert;
     })
-    .filter(Boolean) as Array<{
-    id: string;
-    type: "contrib";
-    areaName: string;
-    indicador: string;
-    traffic: TrafficLight;
-    percent: number | null;
-    current_value: number | null;
-    meta: number | null;
-    href: string;
-  }>;
+    .filter((a): a is Alert => Boolean(a));
 
-  const ownAlerts = ownRows
+  const ownAlerts: Alert[] = ownRows
     .map((r) => {
       const latest = ownLatestById.get(r.id) ?? null;
       if (!latest?.traffic_light) return null;
@@ -445,7 +448,7 @@ export async function AdminDashboard({
           ? r.areas[0]
           : r.areas
         : null;
-      return {
+      const alert: Alert = {
         id: r.id,
         type: "own" as const,
         areaName: area?.name ?? "—",
@@ -456,8 +459,9 @@ export async function AdminDashboard({
         meta: typeof r.meta_value === "number" ? r.meta_value : null,
         href: `/app/admin/propios/${r.id}`,
       };
+      return alert;
     })
-    .filter(Boolean) as typeof alerts;
+    .filter((a): a is Alert => Boolean(a));
 
   const allAlerts = [...alerts, ...ownAlerts].sort((a, b) => {
     const rank = (t: TrafficLight) => (t === "rojo" ? 0 : 1);
