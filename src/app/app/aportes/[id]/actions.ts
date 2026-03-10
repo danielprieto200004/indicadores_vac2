@@ -17,15 +17,17 @@ function asNumber(v: FormDataEntryValue | null) {
   return Number.isFinite(n) ? n : null;
 }
 
+function computeTrafficLight(percent: number): TrafficLight {
+  if (percent >= 80) return "verde";
+  if (percent >= 40) return "naranja";
+  return "rojo";
+}
+
 export async function createProgressUpdate(formData: FormData) {
   const id = asText(formData.get("id"));
   const contribution_id = asText(formData.get("contribution_id"));
-  // En UI usamos una sola "fecha de reporte".
-  // Por compatibilidad con el esquema, guardamos period_start = period_end = report_date.
   const report_date = asText(formData.get("report_date"));
   const current_value = asNumber(formData.get("current_value"));
-  const traffic_light_in = (asText(formData.get("traffic_light")) ||
-    "naranja") as TrafficLight;
   const comment = asText(formData.get("comment"));
   const evidence_path = asText(formData.get("evidence_path")) || null;
   const evidence_link = asText(formData.get("evidence_link")) || null;
@@ -43,7 +45,6 @@ export async function createProgressUpdate(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Traemos la meta asignada al área (para cálculo automático)
   const { data: contribution, error: contribErr } = await supabase
     .from("area_contributions")
     .select("meta_area")
@@ -55,10 +56,6 @@ export async function createProgressUpdate(formData: FormData) {
   const meta_area =
     typeof contribution?.meta_area === "number" ? contribution.meta_area : null;
 
-  // Cálculo automático:
-  // - semáforo según avance respecto a meta (si existe)
-  // - percent calculado si existe meta y es > 0
-  let traffic_light: TrafficLight = "naranja";
   let percent = 0;
 
   if (meta_area !== null && meta_area > 0) {
@@ -66,21 +63,12 @@ export async function createProgressUpdate(formData: FormData) {
       throw new Error("Debes reportar el valor actual para comparar con la meta.");
     }
     const ratio = Math.max(0, current_value) / meta_area;
-    percent = Math.min(100, Math.round(ratio * 10000) / 100); // 2 decimales
-
-    // Permitimos que el usuario seleccione el estado (mejor UX),
-    // pero validamos coherencia mínima:
-    // - "Completo" requiere alcanzar la meta.
-    // - "No realizado" exige observación.
-    traffic_light = traffic_light_in;
-    if (traffic_light === "verde" && current_value < meta_area) {
-      throw new Error("Para marcar 'Completo', el valor reportado debe ser mayor o igual a la meta.");
-    }
+    percent = Math.min(100, Math.round(ratio * 10000) / 100);
   } else {
-    // Sin meta numérica: aceptamos percent como input opcional (si viene)
     percent = asNumber(formData.get("percent")) ?? 0;
-    traffic_light = traffic_light_in;
   }
+
+  const traffic_light = computeTrafficLight(percent);
 
   const { error } = await supabase.from("progress_updates").insert({
     id,
@@ -95,6 +83,110 @@ export async function createProgressUpdate(formData: FormData) {
     evidence_link,
     created_by: user?.id ?? null,
   });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/app/aportes/${contribution_id}`);
+  revalidatePath(`/app/aportes`);
+  revalidatePath(`/app`);
+  revalidatePath(`/app/macros`);
+}
+
+export async function updateProgressUpdate(formData: FormData) {
+  const id = asText(formData.get("id"));
+  const contribution_id = asText(formData.get("contribution_id"));
+  const report_date = asText(formData.get("report_date"));
+  const current_value = asNumber(formData.get("current_value"));
+  const comment = asText(formData.get("comment"));
+  const evidence_path = asText(formData.get("evidence_path")) || null;
+  const evidence_link = asText(formData.get("evidence_link")) || null;
+
+  if (!id || !contribution_id || !report_date) {
+    throw new Error("Faltan campos obligatorios");
+  }
+  if (!comment) {
+    throw new Error("La observación es obligatoria.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("No autenticado");
+
+  const { data: existing, error: fetchErr } = await supabase
+    .from("progress_updates")
+    .select("id,contribution_id,area_contributions(area_id)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (fetchErr) throw new Error(fetchErr.message);
+  if (!existing) throw new Error("Avance no encontrado");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const isAdmin = profile?.role === "admin";
+
+  if (!isAdmin) {
+    const contrib = Array.isArray(existing.area_contributions)
+      ? existing.area_contributions[0]
+      : existing.area_contributions;
+    const areaId = contrib?.area_id;
+    if (areaId) {
+      const { data: profileArea } = await supabase
+        .from("profile_areas")
+        .select("area_id")
+        .eq("profile_id", user.id)
+        .eq("area_id", areaId)
+        .maybeSingle();
+      if (!profileArea) {
+        throw new Error("No tienes permiso para editar este avance");
+      }
+    }
+  }
+
+  const { data: contribution, error: contribErr } = await supabase
+    .from("area_contributions")
+    .select("meta_area")
+    .eq("id", contribution_id)
+    .maybeSingle();
+
+  if (contribErr) throw new Error(contribErr.message);
+
+  const meta_area =
+    typeof contribution?.meta_area === "number" ? contribution.meta_area : null;
+
+  let percent = 0;
+
+  if (meta_area !== null && meta_area > 0) {
+    if (current_value === null) {
+      throw new Error("Debes reportar el valor actual para comparar con la meta.");
+    }
+    const ratio = Math.max(0, current_value) / meta_area;
+    percent = Math.min(100, Math.round(ratio * 10000) / 100);
+  } else {
+    percent = asNumber(formData.get("percent")) ?? 0;
+  }
+
+  const traffic_light = computeTrafficLight(percent);
+
+  const { error } = await supabase
+    .from("progress_updates")
+    .update({
+      period_start: report_date,
+      period_end: report_date,
+      percent,
+      current_value,
+      traffic_light,
+      comment,
+      evidence_path,
+      evidence_link,
+    })
+    .eq("id", id);
 
   if (error) throw new Error(error.message);
 
@@ -119,7 +211,6 @@ export async function deleteProgressUpdate(formData: FormData) {
 
   if (!user) throw new Error("No autenticado");
 
-  // Verificar que el usuario tenga permiso (pertenece al área o es admin)
   const { data: update, error: fetchErr } = await supabase
     .from("progress_updates")
     .select("id,evidence_path,contribution_id,area_contributions(area_id)")
@@ -129,7 +220,6 @@ export async function deleteProgressUpdate(formData: FormData) {
   if (fetchErr) throw new Error(fetchErr.message);
   if (!update) throw new Error("Avance no encontrado");
 
-  // Verificar permisos: el usuario debe pertenecer al área o ser admin
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
@@ -139,7 +229,6 @@ export async function deleteProgressUpdate(formData: FormData) {
   const isAdmin = profile?.role === "admin";
 
   if (!isAdmin) {
-    // Verificar que el usuario pertenezca al área
     const contribution = Array.isArray(update.area_contributions)
       ? update.area_contributions[0]
       : update.area_contributions;
@@ -159,12 +248,10 @@ export async function deleteProgressUpdate(formData: FormData) {
     }
   }
 
-  // Eliminar archivo de evidencia si existe
   if (update.evidence_path) {
     await supabase.storage.from("evidence").remove([update.evidence_path]);
   }
 
-  // Eliminar el avance
   const { error } = await supabase.from("progress_updates").delete().eq("id", update_id);
 
   if (error) throw new Error(error.message);
@@ -174,4 +261,3 @@ export async function deleteProgressUpdate(formData: FormData) {
   revalidatePath(`/app`);
   revalidatePath(`/app/macros`);
 }
-

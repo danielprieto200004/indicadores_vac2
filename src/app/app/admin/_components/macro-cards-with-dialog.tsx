@@ -96,7 +96,7 @@ export function MacroCardsWithDialog({
                       label="Avance (estricto)"
                       value={
                         typeof m.macro_percent_strict === "number"
-                          ? `${m.macro_percent_strict.toFixed(2)}%`
+                          ? `${Math.round(m.macro_percent_strict)}%`
                           : "—"
                       }
                     />
@@ -113,8 +113,8 @@ export function MacroCardsWithDialog({
                         {m.macro_traffic_light === "rojo"
                           ? "En riesgo"
                           : m.macro_traffic_light === "naranja"
-                            ? "En proceso"
-                            : "Completo"}
+                            ? "En desarrollo"
+                            : "Cumplido"}
                       </Badge>
                     ) : (
                       <Badge variant="outline">Sin avances</Badge>

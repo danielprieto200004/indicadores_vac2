@@ -179,10 +179,10 @@ export function ContributionsListWithFilters({
                       }
                     >
                       {latest.traffic_light === "rojo"
-                        ? "No realizado"
+                        ? "Requiere atención"
                         : latest.traffic_light === "naranja"
-                          ? "En proceso"
-                          : "Completo"}
+                          ? "En desarrollo"
+                          : "Cumplido"}
                     </Badge>
                   ) : (
                     <Badge variant="secondary">Sin avances</Badge>
@@ -321,10 +321,10 @@ export function ContributionsListWithFilters({
                             }
                           >
                             {latest.traffic_light === "rojo"
-                              ? "No realizado"
+                              ? "Requiere atención"
                               : latest.traffic_light === "naranja"
-                                ? "En proceso"
-                                : "Completo"}
+                                ? "En desarrollo"
+                                : "Cumplido"}
                           </Badge>
                         ) : (
                           <Badge variant="secondary">Sin avances</Badge>

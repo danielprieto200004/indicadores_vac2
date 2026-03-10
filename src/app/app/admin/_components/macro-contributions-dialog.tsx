@@ -37,7 +37,7 @@ export type ContributionDetail = {
 };
 
 function trafficLabel(t: TrafficLight) {
-  return t === "rojo" ? "No realizado" : t === "naranja" ? "En proceso" : "Completo";
+  return t === "rojo" ? "Requiere atención" : t === "naranja" ? "En desarrollo" : "Cumplido";
 }
 
 function trafficVariant(t: TrafficLight) {
