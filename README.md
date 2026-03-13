@@ -13,6 +13,8 @@ Crea `.env.local` basado en `.env.local.example`.
 npm run dev
 ```
 
+Cada vez que hagas `git push` a la rama `main`, Vercel desplegará automáticamente la última versión y el dashboard mostrará la fecha de actualización de la plataforma.
+
 ## Bootstrap de administradores
 
 1) Registra las 3 cuentas admin desde `/register` (quedan como `pending`).  
