@@ -25,12 +25,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ? String(profile.full_name).split(" ")[0]
     : user.email?.split("@")[0] ?? "";
 
+  const buildTime = process.env.NEXT_PUBLIC_BUILD_TIME ?? null;
+  const buildTimeLabel =
+    buildTime && !Number.isNaN(new Date(buildTime).getTime())
+      ? new Date(buildTime).toLocaleString("es-CO", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
+
   return (
     <div className="flex h-dvh overflow-hidden">
       <Sidebar
         items={items}
         footer={
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                 {displayName.charAt(0).toUpperCase()}
@@ -40,6 +52,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 <div className="truncate text-[11px] text-muted-foreground">{user.email}</div>
               </div>
             </div>
+            {buildTimeLabel ? (
+              <p className="text-[11px] text-muted-foreground">
+                Plataforma actualizada: <span className="font-medium text-foreground">{buildTimeLabel}</span>
+              </p>
+            ) : null}
             <form action="/auth/signout" method="post">
               <Button type="submit" variant="outline" size="sm" className="w-full">
                 Cerrar sesión
