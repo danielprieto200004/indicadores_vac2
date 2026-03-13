@@ -1,7 +1,3 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -10,6 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { MemberContributionsList, type MemberContributionRow } from "@/components/app/member-contributions-list";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type TrafficLight = "verde" | "naranja" | "rojo";
@@ -27,6 +24,7 @@ type JoinedArea =
   | { name: string; type: string }[]
   | null;
 type JoinedMacro = { reto: string } | { reto: string }[] | null;
+
 type ContributionRow = {
   id: string;
   year: number;
@@ -115,6 +113,25 @@ export default async function AportesPage() {
   ).length;
   const sinAvance = rows.filter((r) => !latestById.get(r.id)).length;
 
+  const listRows: MemberContributionRow[] = rows.map((c) => {
+    const area = Array.isArray(c.areas) ? c.areas[0] : c.areas;
+    const macro = Array.isArray(c.macro_challenges)
+      ? c.macro_challenges[0]
+      : c.macro_challenges;
+    const latest = latestById.get(c.id) ?? null;
+    return {
+      id: c.id,
+      year: c.year,
+      reto_area: c.reto_area,
+      indicador_area: c.indicador_area,
+      meta_area: c.meta_area,
+      meta_desc: c.meta_desc ?? null,
+      area: area ? { name: area.name, type: area.type } : null,
+      macro_reto: macro?.reto ?? null,
+      latest,
+    };
+  });
+
   return (
     <div className="space-y-6 pb-8">
       <div>
@@ -179,113 +196,7 @@ export default async function AportesPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-3">
-            {rows.map((c) => {
-              const area = Array.isArray(c.areas) ? c.areas[0] : c.areas;
-              const macro = Array.isArray(c.macro_challenges)
-                ? c.macro_challenges[0]
-                : c.macro_challenges;
-              const latest = latestById.get(c.id);
-              const traffic = latest?.traffic_light ?? null;
-              const pct =
-                typeof latest?.percent === "number" ? latest.percent : 0;
-              const currentVal =
-                typeof latest?.current_value === "number"
-                  ? latest.current_value
-                  : null;
-              const metaVal =
-                typeof c.meta_area === "number" ? c.meta_area : null;
-
-              return (
-                <Link key={c.id} href={`/app/aportes/${c.id}`} className="block group">
-                  <Card
-                    className={`transition-all hover:shadow-md border-l-4 ${traffic ? statusBorder(traffic) : "border-l-border"}`}
-                  >
-                    <CardContent className="pt-5 pb-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge
-                              variant="secondary"
-                              className="text-xs shrink-0"
-                            >
-                              {c.year}
-                            </Badge>
-                            {traffic ? (
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${statusBgLight(traffic)} ${statusColor(traffic)}`}
-                              >
-                                <span
-                                  className={`h-1.5 w-1.5 rounded-full ${statusBg(traffic)}`}
-                                />
-                                {statusLabel(traffic)}
-                              </span>
-                            ) : (
-                              <Badge variant="outline" className="text-xs">
-                                Sin avances
-                              </Badge>
-                            )}
-                          </div>
-                          <h3 className="font-semibold text-sm group-hover:text-primary transition-colors leading-tight">
-                            {c.indicador_area}
-                          </h3>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {c.reto_area}
-                          </p>
-                          {macro?.reto ? (
-                            <p className="text-xs text-muted-foreground/70 mt-0.5">
-                              Macro: {macro.reto}
-                            </p>
-                          ) : null}
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <div className="text-2xl font-bold tabular-nums">
-                            {pct}%
-                          </div>
-                          {metaVal !== null && currentVal !== null ? (
-                            <div className="text-xs text-muted-foreground">
-                              {currentVal} / {metaVal}
-                            </div>
-                          ) : metaVal !== null ? (
-                            <div className="text-xs text-muted-foreground">
-                              Meta: {metaVal}
-                            </div>
-                          ) : null}
-                          {latest?.period_end ? (
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {latest.period_end}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {/* Progress bar */}
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${traffic ? statusBg(traffic) : "bg-muted-foreground/20"}`}
-                          style={{
-                            width: `${Math.min(100, pct)}%`,
-                          }}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between mt-3">
-                        <div className="text-xs text-muted-foreground">
-                          {area?.name ?? ""}{" "}
-                          {area?.type ? `(${area.type})` : ""}
-                        </div>
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-primary group-hover:gap-2 transition-all">
-                          Ver detalle
-                          <ArrowRight className="h-3 w-3" />
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
+          <MemberContributionsList rows={listRows} />
         )}
       </div>
     </div>

@@ -34,6 +34,7 @@ export type ContributionRow = {
 function filterContributions(
   contributions: ContributionRow[],
   selectedAreaId: string,
+  selectedAreaType: string,
   searchQuery: string,
   onlyActive: boolean
 ): ContributionRow[] {
@@ -41,6 +42,11 @@ function filterContributions(
   return contributions.filter((c) => {
     if (onlyActive && !c.active) return false;
     if (selectedAreaId && c.area_id !== selectedAreaId) return false;
+     if (selectedAreaType) {
+       const area = Array.isArray(c.areas) ? c.areas[0] : c.areas;
+       const type = area?.type ?? "";
+       if (type !== selectedAreaType) return false;
+     }
     if (!q) return true;
     const hay = [c.reto_area ?? "", c.indicador_area ?? "", c.meta_desc ?? ""].join(" ").toLowerCase();
     return hay.includes(q);
@@ -60,6 +66,7 @@ export function ContributionsListWithFilters({
   areaOptions: { value: string; label: string }[];
 }) {
   const [selectedAreaId, setSelectedAreaId] = useState("");
+  const [selectedAreaType, setSelectedAreaType] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [onlyActive, setOnlyActive] = useState(false);
 
@@ -69,9 +76,18 @@ export function ContributionsListWithFilters({
     return m;
   }, [latestRows]);
 
+  const areaTypeOptions = useMemo(() => {
+    const set = new Set<string>();
+    contributions.forEach((c) => {
+      const area = Array.isArray(c.areas) ? c.areas[0] : c.areas;
+      if (area?.type) set.add(area.type);
+    });
+    return Array.from(set).sort();
+  }, [contributions]);
+
   const filtered = useMemo(
-    () => filterContributions(contributions, selectedAreaId, searchQuery, onlyActive),
-    [contributions, selectedAreaId, searchQuery, onlyActive]
+    () => filterContributions(contributions, selectedAreaId, selectedAreaType, searchQuery, onlyActive),
+    [contributions, selectedAreaId, selectedAreaType, searchQuery, onlyActive]
   );
 
   return (
@@ -91,6 +107,25 @@ export function ContributionsListWithFilters({
             {areaOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2 md:col-span-3">
+          <label htmlFor="filter-area-type" className="text-xs font-medium text-muted-foreground">
+            Tipo de área
+          </label>
+          <select
+            id="filter-area-type"
+            value={selectedAreaType}
+            onChange={(e) => setSelectedAreaType(e.target.value)}
+            className={selectClassName}
+          >
+            <option value="">Todos los tipos</option>
+            {areaTypeOptions.map((t) => (
+              <option key={t} value={t}>
+                {t}
               </option>
             ))}
           </select>
@@ -118,6 +153,7 @@ export function ContributionsListWithFilters({
             className="w-full md:w-auto"
             onClick={() => {
               setSelectedAreaId("");
+              setSelectedAreaType("");
               setSearchQuery("");
               setOnlyActive(false);
             }}
