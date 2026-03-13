@@ -18,6 +18,20 @@ function statusVariant(t: TrafficLight) {
   return t === "rojo" ? "destructive" : t === "naranja" ? "secondary" : "default";
 }
 
+function parseEvidencePaths(raw: string | null): string[] {
+  if (!raw) return [];
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed))
+        return parsed.filter(
+          (s: unknown) => typeof s === "string" && (s as string).trim()
+        );
+    } catch { /* plain text fallback */ }
+  }
+  return raw.trim() ? [raw.trim()] : [];
+}
+
 function parseEvidenceLinks(raw: string | null): string[] {
   if (!raw) return [];
   if (raw.startsWith("[")) {
@@ -135,7 +149,7 @@ export default async function AdminOwnIndicatorDetailPage({
                     <TableHead className="w-[120px]">Estado</TableHead>
                     <TableHead className="w-[180px]">Avance</TableHead>
                     <TableHead>Observación</TableHead>
-                    <TableHead className="w-[130px]">Evidencia</TableHead>
+                    <TableHead className="w-[170px]">Evidencia</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -164,31 +178,61 @@ export default async function AdminOwnIndicatorDetailPage({
                             {u.comment}
                           </div>
                         </TableCell>
-                        <TableCell className="align-top">
-                          {(() => {
-                            const links = parseEvidenceLinks(u.evidence_link);
-                            const hasEvidence = !!u.evidence_path || links.length > 0;
-                            if (!hasEvidence) return <span className="text-sm text-muted-foreground">—</span>;
-                            return (
-                              <div className="flex flex-col gap-1">
-                                {u.evidence_path ? (
-                                  <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                                    <a href={`/app/evidence/${u.evidence_path}`} target="_blank" rel="noreferrer">
-                                      Ver archivo
-                                    </a>
-                                  </Button>
-                                ) : null}
-                                {links.map((link, i) => (
-                                  <Button key={i} asChild size="sm" variant="outline" className="h-7 text-xs">
-                                    <a href={link} target="_blank" rel="noreferrer">
-                                      {links.length > 1 ? `Link ${i + 1}` : "Ver link"}
-                                    </a>
-                                  </Button>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                        </TableCell>
+                    <TableCell className="align-top">
+                      {(() => {
+                        const links = parseEvidenceLinks(u.evidence_link);
+                        const filePaths = parseEvidencePaths(u.evidence_path);
+                        const hasEvidence = filePaths.length > 0 || links.length > 0;
+                        if (!hasEvidence)
+                          return (
+                            <span className="text-sm text-muted-foreground">
+                              —
+                            </span>
+                          );
+                        return (
+                          <div className="flex flex-col gap-1">
+                            {filePaths.map((path, i) => (
+                              <Button
+                                key={path}
+                                asChild
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                              >
+                                <a
+                                  href={`/app/evidence/${path}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {filePaths.length > 1
+                                    ? `Archivo ${i + 1}`
+                                    : "Ver archivo"}
+                                </a>
+                              </Button>
+                            ))}
+                            {links.map((link, i) => (
+                              <Button
+                                key={link}
+                                asChild
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                              >
+                                <a
+                                  href={link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {links.length > 1
+                                    ? `Link ${i + 1}`
+                                    : "Ver link"}
+                                </a>
+                              </Button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </TableCell>
                       </TableRow>
                     );
                   })}

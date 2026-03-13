@@ -69,6 +69,22 @@ function statusBgLight(t: TrafficLight) {
       : "bg-green-50 dark:bg-green-950/30";
 }
 
+function parseEvidencePaths(raw: string | null): string[] {
+  if (!raw) return [];
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed))
+        return parsed.filter(
+          (s: unknown) => typeof s === "string" && (s as string).trim()
+        );
+    } catch {
+      /* plain text fallback */
+    }
+  }
+  return raw.trim() ? [raw.trim()] : [];
+}
+
 function parseEvidenceLinks(raw: string | null): string[] {
   if (!raw) return [];
   if (raw.startsWith("[")) {
@@ -275,7 +291,8 @@ export default async function OwnIndicatorDetailPage({
             {updates!.map((u, idx) => {
               const canModify = isAdmin || u.created_by === user?.id;
               const links = parseEvidenceLinks(u.evidence_link);
-              const hasEvidence = !!u.evidence_path || links.length > 0;
+              const filePaths = parseEvidencePaths(u.evidence_path);
+              const hasEvidence = filePaths.length > 0 || links.length > 0;
               const isFirst = idx === 0;
 
               return (
@@ -381,23 +398,26 @@ export default async function OwnIndicatorDetailPage({
                       {hasEvidence ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
-                          {u.evidence_path ? (
+                          {filePaths.map((path, i) => (
                             <Button
+                              key={path}
                               asChild
                               size="sm"
                               variant="outline"
                               className="gap-1.5 h-7 text-xs"
                             >
                               <a
-                                href={`/app/evidence/${u.evidence_path}`}
+                                href={`/app/evidence/${path}`}
                                 target="_blank"
                                 rel="noreferrer"
                               >
                                 <FileText className="h-3 w-3" />
-                                Ver archivo
+                                {filePaths.length > 1
+                                  ? `Archivo ${i + 1}`
+                                  : "Ver archivo"}
                               </a>
                             </Button>
-                          ) : null}
+                          ))}
                           {links.map((link, i) => (
                             <Button
                               key={i}

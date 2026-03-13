@@ -26,6 +26,36 @@ export type OwnEditData = {
   evidence_link: string | null;
 };
 
+function parseEvidencePaths(raw: string | null): string[] {
+  if (!raw) return [];
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed))
+        return parsed.filter(
+          (s: unknown) => typeof s === "string" && (s as string).trim()
+        );
+    } catch {
+      /* plain text fallback */
+    }
+  }
+  return raw.trim() ? [raw.trim()] : [];
+}
+
+function sanitizeFilename(name: string): string {
+  if (!name) return "archivo";
+  const [base, ...rest] = name.split(".");
+  const ext = rest.length ? "." + rest.pop() : "";
+  const core = (rest.length ? [base, ...rest].join(".") : base)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9-_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+  return (core || "archivo") + ext.toLowerCase();
+}
+
 function parseEvidenceLinks(raw: string | null): string[] {
   if (!raw) return [];
   if (raw.startsWith("[")) {
@@ -150,25 +180,31 @@ export function OwnProgressUpdateForm({
       const fd = new FormData(form);
 
       const updateId = isEdit ? editData.id : crypto.randomUUID();
-      const file = fd.get("evidence_file");
-      const filename =
-        file instanceof File && file.name
-          ? file.name.replaceAll("\\", "_")
-          : "";
+      const files = fd
+        .getAll("evidence_file")
+        .filter((f): f is File => f instanceof File && f.size > 0);
 
-      let evidencePath = isEdit ? editData.evidence_path ?? "" : "";
+      let evidencePaths = isEdit && editData.evidence_path
+        ? parseEvidencePaths(editData.evidence_path)
+        : [];
       let finalEvidenceLink = "";
 
-      if (evidenceType === "file" && file instanceof File && file.size > 0) {
-        evidencePath = `${areaId}/${updateId}/${filename}`;
-        const { error: upErr } = await supabase.storage
-          .from("evidence")
-          .upload(evidencePath, file, { upsert: true });
-        if (upErr) throw new Error(upErr.message);
+      if (evidenceType === "file" && files.length > 0) {
+        const uploadedPaths: string[] = [];
+        for (const file of files) {
+          const safeName = sanitizeFilename(file.name ?? "archivo");
+          const path = `${areaId}/${updateId}/${safeName}`;
+          const { error: upErr } = await supabase.storage
+            .from("evidence")
+            .upload(path, file, { upsert: true });
+          if (upErr) throw new Error(upErr.message);
+          uploadedPaths.push(path);
+        }
+        evidencePaths = uploadedPaths;
       } else if (evidenceType === "file" && isEdit && editData.evidence_path) {
-        evidencePath = editData.evidence_path;
+        evidencePaths = parseEvidencePaths(editData.evidence_path);
       } else if (evidenceType !== "file") {
-        evidencePath = "";
+        evidencePaths = [];
       }
 
       if (evidenceType === "link") {
@@ -196,7 +232,11 @@ export function OwnProgressUpdateForm({
       if (metaValue === null) {
         serverFd.set("percent", String(fd.get("percent") ?? ""));
       }
-      if (evidencePath) serverFd.set("evidence_path", evidencePath);
+      if (evidencePaths.length === 1) {
+        serverFd.set("evidence_path", evidencePaths[0]);
+      } else if (evidencePaths.length > 1) {
+        serverFd.set("evidence_path", JSON.stringify(evidencePaths));
+      }
       if (finalEvidenceLink) serverFd.set("evidence_link", finalEvidenceLink);
 
       if (isEdit) {
@@ -393,15 +433,16 @@ export function OwnProgressUpdateForm({
           <div className="space-y-2">
             {isEdit && editData.evidence_path && (
               <p className="text-xs text-muted-foreground">
-                Archivo actual:{" "}
+                Archivos actuales:{" "}
                 <span className="font-medium">
-                  {editData.evidence_path.split("/").pop()}
+                  {parseEvidencePaths(editData.evidence_path)
+                    .map((p) => p.split("/").pop() ?? p)
+                    .join(", ")}
                 </span>
-                . Sube uno nuevo para reemplazarlo, o déjalo vacío para
-                mantenerlo.
+                . Sube nuevos para reemplazarlos, o deja vacío para mantenerlos.
               </p>
             )}
-            <Input id="evidence_file" name="evidence_file" type="file" />
+            <Input id="evidence_file" name="evidence_file" type="file" multiple />
           </div>
         )}
 

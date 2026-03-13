@@ -23,6 +23,22 @@ function computeTrafficLight(percent: number): TrafficLight {
   return "rojo";
 }
 
+function parseEvidencePaths(raw: string | null): string[] {
+  if (!raw) return [];
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed))
+        return parsed.filter(
+          (s: unknown) => typeof s === "string" && (s as string).trim()
+        );
+    } catch {
+      /* plain text fallback */
+    }
+  }
+  return raw.trim() ? [raw.trim()] : [];
+}
+
 export async function createProgressUpdate(formData: FormData) {
   const id = asText(formData.get("id"));
   const contribution_id = asText(formData.get("contribution_id"));
@@ -249,7 +265,10 @@ export async function deleteProgressUpdate(formData: FormData) {
   }
 
   if (update.evidence_path) {
-    await supabase.storage.from("evidence").remove([update.evidence_path]);
+    const paths = parseEvidencePaths(update.evidence_path);
+    if (paths.length) {
+      await supabase.storage.from("evidence").remove(paths);
+    }
   }
 
   const { error } = await supabase.from("progress_updates").delete().eq("id", update_id);

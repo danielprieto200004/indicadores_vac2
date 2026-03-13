@@ -10,6 +10,10 @@ const nextConfig = {
   // Evita que Next detecte como root el home del usuario
   // si existen otros lockfiles fuera del proyecto.
   outputFileTracingRoot: __dirname,
+  // Marca de tiempo del build para mostrar en el dashboard.
+  env: {
+    NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
+  },
 };
 
 export default nextConfig;

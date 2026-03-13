@@ -245,6 +245,18 @@ export default async function AppDashboardPage() {
     ? profile.full_name.split(" ")[0]
     : null;
 
+  const buildTime = process.env.NEXT_PUBLIC_BUILD_TIME ?? null;
+  const buildTimeLabel =
+    buildTime && !Number.isNaN(new Date(buildTime).getTime())
+      ? new Date(buildTime).toLocaleString("es-CO", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
+
   return (
     <div className="space-y-8 pb-8">
       {/* ── Hero ── */}
@@ -272,6 +284,14 @@ export default async function AppDashboardPage() {
               </span>
             )}
           </p>
+          {buildTimeLabel ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Plataforma actualizada:{" "}
+              <span className="font-medium text-foreground">
+                {buildTimeLabel}
+              </span>
+            </p>
+          ) : null}
         </div>
 
         {/* Barra de progreso */}
