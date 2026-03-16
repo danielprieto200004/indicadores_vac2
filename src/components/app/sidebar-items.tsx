@@ -16,7 +16,7 @@ export const memberSidebarItems: SidebarItem[] = [
 ];
 
 export const adminSidebarItems: SidebarItem[] = [
-  ...memberSidebarItems.filter((i) => i.href !== "/app/propios"),
+  ...memberSidebarItems.filter((i) => i.href !== "/app/propios" && i.href !== "/app/aportes"),
   { href: "/app/admin", label: "Gestión", icon: <Shield className="size-4" /> },
   { href: "/app/admin/usuarios", label: "Usuarios", icon: <Users2 className="size-4" /> },
 ];

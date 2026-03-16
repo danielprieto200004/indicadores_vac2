@@ -1,16 +1,5 @@
-"use client";
-
-import { useState } from "react";
-import { BarChart3, Target } from "lucide-react";
-
-import { MacroContributionsDialog } from "@/app/app/admin/_components/macro-contributions-dialog";
-import type { ContributionDetail } from "@/app/app/admin/_components/macro-contributions-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
 type TrafficLight = "verde" | "naranja" | "rojo";
-
-export type { ContributionDetail };
 
 export type MacroCardWithDetails = {
   id: string;
@@ -26,12 +15,7 @@ export type MacroCardWithDetails = {
   contributions_completed_count: number;
   macro_percent_strict: number | null;
   macro_traffic_light: TrafficLight | null;
-  contributionsDetail: ContributionDetail[];
 };
-
-function trafficVariant(t: TrafficLight) {
-  return t === "rojo" ? "destructive" : t === "naranja" ? "secondary" : "default";
-}
 
 function TinyStat({ label, value }: { label: string; value: string }) {
   return (
@@ -42,110 +26,97 @@ function TinyStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+
 export function MacroCardsWithDialog({
   macroCardsWithDetails,
 }: {
   macroCardsWithDetails: MacroCardWithDetails[];
 }) {
-  const [openId, setOpenId] = useState<string | null>(null);
-  const selected = macroCardsWithDetails.find((m) => m.id === openId);
-
   return (
-    <>
-      <div className="max-h-[420px] overflow-y-auto pr-2">
-        <div className="grid gap-3">
-          {macroCardsWithDetails.map((m) => (
-            <div key={m.id} className="rounded-xl border border-input bg-background p-4">
-              <div className="grid gap-3 lg:grid-cols-12 lg:items-start">
-                <div className="min-w-0 lg:col-span-8">
-                  <div className="truncate text-sm font-semibold" title={m.reto}>
-                    {m.reto}
+    <div className="max-h-[480px] overflow-y-auto pr-2">
+      <div className="grid gap-3">
+        {macroCardsWithDetails.map((m) => (
+            <div
+              key={m.id}
+              className="rounded-xl border border-input bg-background p-4"
+            >
+              <div className="grid gap-4 lg:grid-cols-12 lg:items-start">
+
+                {/* ── Lado izquierdo: texto ── */}
+                <div className="min-w-0 space-y-3 lg:col-span-7">
+
+                  {/* Título */}
+                  <div>
+                    <h3 className="text-sm font-semibold leading-snug text-foreground">
+                      {m.reto}
+                    </h3>
                   </div>
-                  <div className="mt-1 line-clamp-2 text-xs text-muted-foreground" title={m.indicador}>
-                    {m.indicador}
-                  </div>
-                  <div className="mt-3 line-clamp-2 text-xs text-muted-foreground">
-                    <span className="font-medium">Metas:</span>{" "}
-                    <span className="text-foreground">
-                      {m.meta_1_value ?? "—"}
-                      {m.meta_1_desc ? ` — ${m.meta_1_desc}` : ""}
-                    </span>
-                    {m.meta_2_value !== null || m.meta_2_desc ? (
-                      <span className="text-foreground">
-                        {" "}
-                        · {m.meta_2_value ?? "—"}
-                        {m.meta_2_desc ? ` — ${m.meta_2_desc}` : ""}
-                      </span>
-                    ) : null}
-                  </div>
+
+                  {/* Indicador */}
+                  {m.indicador ? (
+                    <div className="space-y-0.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Indicador
+                      </p>
+                      <p className="text-xs leading-relaxed text-muted-foreground line-clamp-3">
+                        {m.indicador}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {/* Metas */}
+                  {(m.meta_1_value !== null || m.meta_1_desc) ? (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Metas
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(m.meta_1_value !== null || m.meta_1_desc) ? (
+                          <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs text-foreground">
+                            <span className="mr-1 text-[10px] font-semibold text-muted-foreground">M1</span>
+                            {m.meta_1_value ?? "—"}
+                            {m.meta_1_desc ? ` — ${m.meta_1_desc}` : ""}
+                          </span>
+                        ) : null}
+                        {(m.meta_2_value !== null || m.meta_2_desc) ? (
+                          <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs text-foreground">
+                            <span className="mr-1 text-[10px] font-semibold text-muted-foreground">M2</span>
+                            {m.meta_2_value ?? "—"}
+                            {m.meta_2_desc ? ` — ${m.meta_2_desc}` : ""}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-                <div className="grid min-w-0 gap-2 sm:grid-cols-3 lg:col-span-4 lg:grid-cols-1">
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-2">
+
+                {/* ── Lado derecho: stats ── */}
+                <div className="grid min-w-0 gap-2 lg:col-span-5">
+                  <div className="grid grid-cols-2 gap-2">
                     <TinyStat label="Áreas que aportan" value={`${m.contributing_areas_count}`} />
                     <TinyStat label="Sin aporte" value={`${m.missing_areas_count}`} />
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <TinyStat label="Retos del área" value={`${m.contributions_count}`} />
                     <TinyStat
                       label="Completos"
                       value={`${m.contributions_completed_count}/${m.contributions_count}`}
                     />
                   </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <TinyStat
-                      label="Avance (estricto)"
-                      value={
-                        typeof m.macro_percent_strict === "number"
-                          ? `${Math.round(m.macro_percent_strict)}%`
-                          : "—"
-                      }
-                    />
-                    {m.macro_traffic_light ? (
-                      <Badge
-                        variant={
-                          m.macro_traffic_light === "rojo"
-                            ? "destructive"
-                            : m.macro_traffic_light === "naranja"
-                              ? "secondary"
-                              : "default"
-                        }
-                      >
-                        {m.macro_traffic_light === "rojo"
-                          ? "En riesgo"
-                          : m.macro_traffic_light === "naranja"
-                            ? "En desarrollo"
-                            : "Cumplido"}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">Sin avances</Badge>
-                    )}
-                  </div>
+                  <TinyStat
+                    label="Avance (estricto)"
+                    value={
+                      typeof m.macro_percent_strict === "number"
+                        ? `${Math.round(m.macro_percent_strict)}%`
+                        : "—"
+                    }
+                  />
                 </div>
-              </div>
-              <div className="mt-3 border-t border-input pt-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setOpenId(m.id)}
-                >
-                  <Target className="mr-2 h-4 w-4 shrink-0" />
-                  Ver quién aporta y con qué indicadores
-                </Button>
+
               </div>
             </div>
-          ))}
-        </div>
+        ))}
       </div>
-
-      <MacroContributionsDialog
-        open={!!openId}
-        onOpenChange={(open) => !open && setOpenId(null)}
-        reto={selected?.reto ?? ""}
-        indicador={selected?.indicador ?? ""}
-        contributionsDetail={selected?.contributionsDetail ?? []}
-      />
-    </>
+    </div>
   );
 }

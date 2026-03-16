@@ -1,17 +1,17 @@
 import Link from "next/link";
 
 import {
-  AlertTriangle,
   BarChart3,
   Building2,
   CheckCircle2,
   Flame,
-  Layers,
   Target,
   TrendingUp,
 } from "lucide-react";
 
 import { MacroCardsWithDialog } from "@/app/app/admin/_components/macro-cards-with-dialog";
+import { IndicatorsSection } from "@/app/app/admin/_components/indicators-section";
+import type { AllIndicatorItem } from "@/app/app/admin/_components/all-indicators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,21 +42,6 @@ type OwnLatest = {
   current_value: number | null;
 };
 
-function statusBg(t: TrafficLight) {
-  return t === "rojo"
-    ? "bg-red-500"
-    : t === "naranja"
-      ? "bg-amber-500"
-      : "bg-green-500";
-}
-
-function statusLabel(t: TrafficLight) {
-  return t === "rojo"
-    ? "Requiere atención"
-    : t === "naranja"
-      ? "En desarrollo"
-      : "Cumplido";
-}
 
 export async function AdminDashboard({
   searchParams,
@@ -167,13 +152,44 @@ export async function AdminDashboard({
     ownLatestById.set((r as OwnLatest).indicator_id, r as OwnLatest)
   );
 
+  /* ── Latest comments ── */
+  type ContribComment = { contribution_id: string; comment: string | null; created_at: string };
+  type OwnComment = { indicator_id: string; comment: string | null; created_at: string };
+
+  const { data: contribCommentRows } = ids.length
+    ? await supabase
+        .from("progress_updates")
+        .select("contribution_id,comment,created_at")
+        .in("contribution_id", ids)
+        .order("created_at", { ascending: false })
+    : { data: [] as ContribComment[] };
+
+  const contribCommentById = new Map<string, string | null>();
+  (contribCommentRows ?? []).forEach((r) => {
+    const row = r as ContribComment;
+    if (!contribCommentById.has(row.contribution_id))
+      contribCommentById.set(row.contribution_id, row.comment);
+  });
+
+  const { data: ownCommentRows } = ownIds.length
+    ? await supabase
+        .from("area_own_updates")
+        .select("indicator_id,comment,created_at")
+        .in("indicator_id", ownIds)
+        .order("created_at", { ascending: false })
+    : { data: [] as OwnComment[] };
+
+  const ownCommentById = new Map<string, string | null>();
+  (ownCommentRows ?? []).forEach((r) => {
+    const row = r as OwnComment;
+    if (!ownCommentById.has(row.indicator_id))
+      ownCommentById.set(row.indicator_id, row.comment);
+  });
+
   /* ── KPI calculations ── */
   const totalAreas = (areas ?? []).length;
   const totalMacros = (macros ?? []).length;
   const totalContrib = contribRows.length;
-  const withUpdates = contribRows.filter((r) =>
-    latestById.has(r.id)
-  ).length;
   const completed = contribRows.filter(
     (r) => latestById.get(r.id)?.traffic_light === "verde"
   ).length;
@@ -181,14 +197,10 @@ export async function AdminDashboard({
     const t = latestById.get(r.id)?.traffic_light;
     return t === "naranja" || t === "rojo";
   }).length;
-  const noUpdate = totalContrib - withUpdates;
 
   const uniqueAreasWithContrib = new Set(
     contribRows.map((r) => r.area_id)
   );
-  const coveragePct = totalAreas
-    ? Math.round((uniqueAreasWithContrib.size / totalAreas) * 100)
-    : 0;
   const overallPct =
     totalContrib > 0
       ? Math.round((completed / totalContrib) * 100)
@@ -310,31 +322,6 @@ export async function AdminDashboard({
       return bp - ap;
     });
 
-  const macroCardsWithDetails = macroCards.map((m) => {
-    const rows = contribByMacro.get(m.id) ?? [];
-    const contributionsDetail = rows.map((c) => {
-      const area = Array.isArray(c.areas) ? c.areas[0] : c.areas;
-      const latest = latestById.get(c.id) ?? null;
-      return {
-        id: c.id,
-        areaName: area?.name ?? "—",
-        areaType: area?.type ?? "",
-        reto_area: c.reto_area ?? "",
-        indicador_area: c.indicador_area ?? "",
-        meta_area: c.meta_area ?? null,
-        meta_desc: c.meta_desc ?? null,
-        latest: latest
-          ? {
-              traffic_light: latest.traffic_light,
-              percent: latest.percent,
-              current_value: latest.current_value,
-              period_end: latest.period_end,
-            }
-          : null,
-      };
-    });
-    return { ...m, contributionsDetail };
-  });
 
   /* ── Area breakdown ── */
   const areaList = (areas ?? []) as Array<{
@@ -348,15 +335,7 @@ export async function AdminDashboard({
       const aContribs = contribRows.filter((c) => c.area_id === a.id);
       const aOwn = ownRows.filter((c) => c.area_id === a.id);
       const aTotal = aContribs.length + aOwn.length;
-      if (aTotal === 0)
-        return {
-          ...a,
-          total: 0,
-          completed: 0,
-          risk: 0,
-          noUpdate: 0,
-          pct: 0,
-        };
+      if (aTotal === 0) return null;
 
       const cComplete = aContribs.filter(
         (c) => latestById.get(c.id)?.traffic_light === "verde"
@@ -372,12 +351,50 @@ export async function AdminDashboard({
         const t = ownLatestById.get(c.id)?.traffic_light;
         return t === "naranja" || t === "rojo";
       }).length;
-      const cNoUp = aContribs.filter(
-        (c) => !latestById.has(c.id)
-      ).length;
-      const oNoUp = aOwn.filter(
-        (c) => !ownLatestById.has(c.id)
-      ).length;
+      const cNoUp = aContribs.filter((c) => !latestById.has(c.id)).length;
+      const oNoUp = aOwn.filter((c) => !ownLatestById.has(c.id)).length;
+
+      const indicators = [
+        ...aContribs.map((c) => {
+          const latest = latestById.get(c.id) ?? null;
+          return {
+            id: c.id,
+            type: "contrib" as const,
+            indicador: c.indicador_area,
+            reto: c.reto_area,
+            traffic_light: (latest?.traffic_light ?? null) as TrafficLight | null,
+            percent: typeof latest?.percent === "number" ? latest.percent : null,
+            current_value: typeof latest?.current_value === "number" ? latest.current_value : null,
+            meta: typeof c.meta_area === "number" ? c.meta_area : null,
+            date: latest?.period_end ?? null,
+            comment: contribCommentById.get(c.id) ?? null,
+            href: `/app/aportes/${c.id}`,
+          };
+        }),
+        ...aOwn.map((r) => {
+          const latest = ownLatestById.get(r.id) ?? null;
+          return {
+            id: r.id,
+            type: "own" as const,
+            indicador: r.indicador_area,
+            reto: r.reto_area,
+            traffic_light: (latest?.traffic_light ?? null) as TrafficLight | null,
+            percent: typeof latest?.percent === "number" ? latest.percent : null,
+            current_value: typeof latest?.current_value === "number" ? latest.current_value : null,
+            meta: typeof r.meta_value === "number" ? r.meta_value : null,
+            date: latest?.report_date ?? null,
+            comment: ownCommentById.get(r.id) ?? null,
+            href: `/app/admin/propios/${r.id}`,
+          };
+        }),
+      ];
+
+      // Promedio real de porcentajes (indicadores sin reporte cuentan como 0)
+      const sumPct = indicators.reduce(
+        (acc, ind) => acc + (ind.percent ?? 0),
+        0
+      );
+      const pct = Math.round(sumPct / aTotal);
 
       return {
         ...a,
@@ -385,87 +402,57 @@ export async function AdminDashboard({
         completed: cComplete + oComplete,
         risk: cRisk + oRisk,
         noUpdate: cNoUp + oNoUp,
-        pct:
-          aTotal > 0
-            ? Math.round(
-                ((cComplete + oComplete) / aTotal) * 100
-              )
-            : 0,
+        pct,
+        indicators,
       };
     })
-    .filter((a) => a.total > 0)
+    .filter((a): a is NonNullable<typeof a> => a !== null)
     .sort((a, b) => a.pct - b.pct);
 
-  /* ── Alerts ── */
-  type Alert = {
-    id: string;
-    type: "contrib" | "own";
-    areaName: string;
-    indicador: string;
-    traffic: TrafficLight;
-    percent: number | null;
-    current_value: number | null;
-    meta: number | null;
-    href: string;
-  };
-
-  const alerts: Alert[] = contribRows
-    .map((c) => {
+  /* ── All indicators flat list ── */
+  const allIndicators: AllIndicatorItem[] = [
+    ...contribRows.map((c) => {
       const latest = latestById.get(c.id) ?? null;
-      if (!latest?.traffic_light) return null;
-      if (
-        latest.traffic_light !== "rojo" &&
-        latest.traffic_light !== "naranja"
-      )
-        return null;
       const area = Array.isArray(c.areas) ? c.areas[0] : c.areas;
-      const alert: Alert = {
+      return {
         id: c.id,
         type: "contrib" as const,
-        areaName: area?.name ?? "—",
         indicador: c.indicador_area,
-        traffic: latest.traffic_light as TrafficLight,
-        percent: latest.percent,
-        current_value: latest.current_value,
-        meta: c.meta_area,
+        reto: c.reto_area,
+        areaName: area?.name ?? "—",
+        areaType: area?.type ?? "",
+        year: c.year,
+        meta: typeof c.meta_area === "number" ? c.meta_area : null,
+        metaDesc: c.meta_desc ?? null,
+        traffic_light: (latest?.traffic_light ?? null) as TrafficLight | null,
+        percent: typeof latest?.percent === "number" ? latest.percent : null,
+        current_value: typeof latest?.current_value === "number" ? latest.current_value : null,
         href: `/app/aportes/${c.id}`,
       };
-      return alert;
-    })
-    .filter((a): a is Alert => Boolean(a));
-
-  const ownAlerts: Alert[] = ownRows
-    .map((r) => {
+    }),
+    ...ownRows.map((r) => {
       const latest = ownLatestById.get(r.id) ?? null;
-      if (!latest?.traffic_light) return null;
-      if (
-        latest.traffic_light !== "rojo" &&
-        latest.traffic_light !== "naranja"
-      )
-        return null;
-      const area = r.areas
-        ? Array.isArray(r.areas)
-          ? r.areas[0]
-          : r.areas
-        : null;
-      const alert: Alert = {
+      const area = Array.isArray(r.areas) ? r.areas[0] : r.areas;
+      return {
         id: r.id,
         type: "own" as const,
-        areaName: area?.name ?? "—",
         indicador: r.indicador_area,
-        traffic: latest.traffic_light as TrafficLight,
-        percent: latest.percent,
-        current_value: latest.current_value,
+        reto: r.reto_area,
+        areaName: area?.name ?? "—",
+        areaType: area?.type ?? "",
+        year: r.year,
         meta: typeof r.meta_value === "number" ? r.meta_value : null,
+        metaDesc: null,
+        traffic_light: (latest?.traffic_light ?? null) as TrafficLight | null,
+        percent: typeof latest?.percent === "number" ? latest.percent : null,
+        current_value: typeof latest?.current_value === "number" ? latest.current_value : null,
         href: `/app/admin/propios/${r.id}`,
       };
-      return alert;
-    })
-    .filter((a): a is Alert => Boolean(a));
-
-  const allAlerts = [...alerts, ...ownAlerts].sort((a, b) => {
-    const rank = (t: TrafficLight) => (t === "rojo" ? 0 : 1);
-    return rank(a.traffic) - rank(b.traffic);
+    }),
+  ].sort((a, b) => {
+    const rank = (t: TrafficLight | null) =>
+      t === "rojo" ? 0 : t === "naranja" ? 1 : t === "verde" ? 2 : 3;
+    return rank(a.traffic_light) - rank(b.traffic_light);
   });
 
   return (
@@ -572,252 +559,35 @@ export async function AdminDashboard({
         />
       </div>
 
-      {/* ── Main grid: Macros + Alerts ── */}
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Macro cards */}
-        <Card className="lg:col-span-7">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between gap-2 text-base">
-              <span className="flex items-center gap-2">
-                <Target className="h-5 w-5 text-primary" />
-                Retos Macro VAC
-              </span>
-              <Button asChild size="sm" variant="outline">
-                <Link href="/app/macros">Consolidado</Link>
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!macroCards.length ? (
-              <p className="text-sm text-muted-foreground py-4">
-                Sin Retos Macro para {selectedYear}.
-              </p>
-            ) : (
-              <MacroCardsWithDialog
-                macroCardsWithDetails={macroCardsWithDetails}
-              />
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Alerts */}
-        <Card className="lg:col-span-5">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Alertas
-              {allAlerts.length > 0 ? (
-                <Badge
-                  variant="destructive"
-                  className="ml-auto text-[10px]"
-                >
-                  {allAlerts.length}
-                </Badge>
-              ) : null}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!allAlerts.length ? (
-              <p className="text-sm text-muted-foreground py-4">
-                Sin alertas para {selectedYear}.
-              </p>
-            ) : (
-              <div className="max-h-[460px] overflow-y-auto pr-1 space-y-2">
-                {allAlerts.slice(0, 12).map((a) => (
-                  <Link
-                    key={a.id}
-                    href={a.href}
-                    className="block group"
-                  >
-                    <div
-                      className={cn(
-                        "rounded-lg border p-3 transition-all hover:shadow-sm border-l-4",
-                        a.traffic === "rojo"
-                          ? "border-l-red-500"
-                          : "border-l-amber-500"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-medium text-muted-foreground truncate">
-                            {a.areaName}
-                          </div>
-                          <div className="text-sm font-semibold leading-tight line-clamp-2 mt-0.5 group-hover:text-primary transition-colors">
-                            {a.indicador}
-                          </div>
-                        </div>
-                        <span
-                          className={cn(
-                            "shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                            a.traffic === "rojo"
-                              ? "bg-red-50 text-red-600 dark:bg-red-950/30"
-                              : "bg-amber-50 text-amber-600 dark:bg-amber-950/30"
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "h-1.5 w-1.5 rounded-full",
-                              statusBg(a.traffic)
-                            )}
-                          />
-                          {statusLabel(a.traffic)}
-                        </span>
-                      </div>
-                      {typeof a.percent === "number" ? (
-                        <div className="mt-2">
-                          <div className="flex justify-between text-[10px] text-muted-foreground mb-0.5">
-                            <span>
-                              {typeof a.current_value === "number" &&
-                              typeof a.meta === "number"
-                                ? `${a.current_value} / ${a.meta}`
-                                : "Avance"}
-                            </span>
-                            <span className="font-medium tabular-nums">
-                              {a.percent}%
-                            </span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className={cn(
-                                "h-full rounded-full",
-                                statusBg(a.traffic)
-                              )}
-                              style={{
-                                width: `${Math.min(100, a.percent)}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Area breakdown ── */}
-      {areaBreakdown.length > 0 ? (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Building2 className="h-5 w-5 text-primary" />
-              Avance por área
-              <Badge variant="secondary" className="ml-auto">
-                {areaBreakdown.length} áreas
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {areaBreakdown.map((a) => (
-                <div key={a.id} className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <span className="text-sm font-medium truncate block">
-                        {a.name}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {a.type} · {a.total} indicadores
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                          {a.completed}
-                        </span>
-                        {a.risk > 0 ? (
-                          <span className="flex items-center gap-1 text-amber-600">
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                            {a.risk}
-                          </span>
-                        ) : null}
-                        {a.noUpdate > 0 ? (
-                          <span className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
-                            {a.noUpdate}
-                          </span>
-                        ) : null}
-                      </div>
-                      <span className="text-sm font-bold tabular-nums w-10 text-right">
-                        {a.pct}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all",
-                        a.pct >= 100
-                          ? "bg-green-500"
-                          : a.risk > 0
-                            ? "bg-amber-500"
-                            : "bg-primary"
-                      )}
-                      style={{ width: `${a.pct}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {/* ── Own indicators summary ── */}
-      {ownTotal > 0 ? (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between gap-2 text-base">
-              <span className="flex items-center gap-2">
-                <Layers className="h-5 w-5 text-primary" />
-                Indicadores propios
-              </span>
-              <Button
-                asChild
-                size="sm"
-                variant="outline"
-              >
-                <Link
-                  href={`/app/admin/propios?year=${selectedYear}`}
-                >
-                  Ver consolidado
-                </Link>
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 mb-4">
-              <StatPill label="Activos" value={ownTotal} />
-              <StatPill
-                label="Completos"
-                value={ownCompleted}
-                color="green"
-              />
-              <StatPill
-                label="En riesgo"
-                value={ownAtRisk}
-                color={ownAtRisk > 0 ? "amber" : undefined}
-              />
-              <StatPill
-                label="Sin reporte"
-                value={ownNoUpdate}
-                color={ownNoUpdate > 0 ? "red" : undefined}
-              />
-            </div>
-            <ProgressBlock
-              label="Cumplimiento general propios"
-              completed={ownCompleted}
-              total={ownTotal}
-              pct={ownPct}
-              colorClass="bg-blue-500"
+      {/* ── Macro cards ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center justify-between gap-2 text-base">
+            <span className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              Retos Macro VAC
+            </span>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/app/macros">Consolidado</Link>
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!macroCards.length ? (
+            <p className="text-sm text-muted-foreground py-4">
+              Sin Retos Macro para {selectedYear}.
+            </p>
+          ) : (
+            <MacroCardsWithDialog
+              macroCardsWithDetails={macroCards}
             />
-          </CardContent>
-        </Card>
-      ) : null}
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Area breakdown + All indicators ── */}
+      <IndicatorsSection areaBreakdown={areaBreakdown} allIndicators={allIndicators} />
+
     </div>
   );
 }
@@ -911,32 +681,3 @@ function KpiCard({
   );
 }
 
-function StatPill({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color?: "green" | "amber" | "red";
-}) {
-  const valColor =
-    color === "green"
-      ? "text-green-600"
-      : color === "amber"
-        ? "text-amber-600"
-        : color === "red"
-          ? "text-red-600"
-          : "text-foreground";
-
-  return (
-    <div className="rounded-lg border bg-muted/20 px-3 py-2 text-center">
-      <div className={cn("text-xl font-bold tabular-nums", valColor)}>
-        {value}
-      </div>
-      <div className="text-[10px] font-medium text-muted-foreground">
-        {label}
-      </div>
-    </div>
-  );
-}
