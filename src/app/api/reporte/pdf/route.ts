@@ -208,7 +208,10 @@ export async function GET(request: NextRequest) {
 
   const filename = `Reporte-Indicadores-VAC-${selectedYear}.pdf`;
 
-  return new NextResponse(buffer, {
+  // Buffer -> Uint8Array para satisfacer los tipos de NextResponse
+  const body = buffer as unknown as Uint8Array;
+
+  return new NextResponse(body, {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
