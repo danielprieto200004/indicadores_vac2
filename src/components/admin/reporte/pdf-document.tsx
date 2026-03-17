@@ -1,4 +1,5 @@
 import React from "react";
+import type { DocumentProps } from "@react-pdf/renderer";
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
 
 /* ── Types ── */
@@ -31,7 +32,7 @@ export type AreaBreakdownItem = {
   tl: TrafficLight;
 };
 
-export type ReporteData = {
+export interface ReporteData {
   year: number;
   generatedAt: string;
   kpis: {
@@ -52,7 +53,11 @@ export type ReporteData = {
   };
   macroSummary: MacroSummaryItem[];
   areaBreakdown: AreaBreakdownItem[];
-};
+}
+
+export interface ReportePDFProps extends DocumentProps {
+  data: ReporteData;
+}
 
 /* ── Paleta ── */
 
@@ -423,7 +428,7 @@ function Td({ w, center, bold, muted, color, children }: { w: number; center?: b
 
 /* ── Document ── */
 
-export function ReportePDF({ data }: { data: ReporteData }) {
+export function ReportePDF({ data }: ReportePDFProps) {
   const { year, generatedAt, kpis, macroSummary, areaBreakdown } = data;
 
   return (
