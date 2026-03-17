@@ -38,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       : null;
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div className="flex h-dvh overflow-hidden print:block print:h-auto print:overflow-visible">
       <Sidebar
         items={items}
         footer={
@@ -65,7 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         }
       />
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden print:overflow-visible print:block">
         <main className="flex-1 px-4 py-6 md:px-6">{children}</main>
       </div>
     </div>

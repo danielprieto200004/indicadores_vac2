@@ -7,10 +7,8 @@ const __dirname = path.dirname(__filename);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Evita que Next detecte como root el home del usuario
-  // si existen otros lockfiles fuera del proyecto.
   outputFileTracingRoot: __dirname,
-  // Marca de tiempo del build para mostrar en el dashboard.
+  serverExternalPackages: ["@react-pdf/renderer"],
   env: {
     NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
   },

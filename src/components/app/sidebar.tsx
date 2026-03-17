@@ -27,7 +27,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "hidden h-dvh w-[280px] shrink-0 sticky top-0 border-r bg-card md:flex md:flex-col overflow-y-auto",
+        "hidden h-dvh w-[280px] shrink-0 sticky top-0 border-r bg-card md:flex md:flex-col overflow-y-auto print:hidden",
         className
       )}
     >

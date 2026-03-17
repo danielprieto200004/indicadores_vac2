@@ -4,6 +4,7 @@ import {
   BarChart3,
   Building2,
   CheckCircle2,
+  FileText,
   Flame,
   Target,
   TrendingUp,
@@ -515,6 +516,16 @@ export async function AdminDashboard({
               className="h-9"
             >
               <Link href="/app/admin/aportes">Gestionar retos</Link>
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              className="h-9 gap-1.5"
+            >
+              <Link href={`/app/admin/reporte?year=${selectedYear}`}>
+                <FileText className="h-4 w-4" />
+                Generar Reporte
+              </Link>
             </Button>
           </div>
         </div>

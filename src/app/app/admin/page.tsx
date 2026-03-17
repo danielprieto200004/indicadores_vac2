@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { ArrowRight, Building2, ClipboardCheck, ShieldCheck, Target } from "lucide-react";
+import { ArrowRight, Building2, ClipboardCheck, FileText, ShieldCheck, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 export default function AdminHomePage() {
@@ -21,9 +21,17 @@ export default function AdminHomePage() {
                   (panorama ejecutivo) está en la ruta principal.
                 </p>
               </div>
-              <Button asChild variant="outline">
-                <Link href="/app">Ir al Dashboard</Link>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button asChild variant="outline">
+                  <Link href="/app">Ir al Dashboard</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/app/admin/reporte" className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Generar Reporte
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
         </div>
