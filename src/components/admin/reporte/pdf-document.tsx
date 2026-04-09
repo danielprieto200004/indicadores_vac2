@@ -32,6 +32,17 @@ export type AreaBreakdownItem = {
   tl: TrafficLight;
 };
 
+export type IndicadorAvanceItem = {
+  id: string;
+  areaName: string;
+  tipo: "contribucion" | "propio";
+  indicador: string;
+  reto: string;
+  percent: number | null;
+  traffic_light: TrafficLight;
+  comment: string | null;
+};
+
 export interface ReporteData {
   year: number;
   generatedAt: string;
@@ -53,6 +64,7 @@ export interface ReporteData {
   };
   macroSummary: MacroSummaryItem[];
   areaBreakdown: AreaBreakdownItem[];
+  indicadorAvances: IndicadorAvanceItem[];
 }
 
 export interface ReportePDFProps extends DocumentProps {
@@ -346,6 +358,43 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   footerTxt: { fontSize: 6.5, color: C.textLight, marginBottom: 2 },
+
+  /* ── Indicator cards (section 4) ── */
+  cardItem: {
+    borderWidth: 1,
+    borderColor: C.grayBorder,
+    borderRadius: 5,
+    borderLeftWidth: 4,
+    marginBottom: 8,
+    paddingVertical: 9,
+    paddingRight: 10,
+    paddingLeft: 12,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  cardArea: { fontSize: 9, fontFamily: "Helvetica-Bold", color: C.textDark },
+  tipoBadge: { borderWidth: 1, borderRadius: 4, paddingVertical: 1, paddingHorizontal: 5 },
+  tipoBadgeText: { fontSize: 6, fontFamily: "Helvetica-Bold" },
+  cardIndicador: { fontSize: 8, color: C.textMid, marginBottom: 2 },
+  cardReto: { fontSize: 7, color: C.textLight, marginBottom: 5 },
+  cardProgress: { flexDirection: "row", alignItems: "center", marginBottom: 0 },
+  progTrackLg: { flex: 1, height: 6, backgroundColor: "#e5e7eb", borderRadius: 3, marginRight: 6 },
+  progFillLg: { height: 6, borderRadius: 3 },
+  progPctLg: { fontSize: 8, fontFamily: "Helvetica-Bold", color: C.textDark, marginRight: 8, width: 28 },
+  commentBox: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 4,
+    padding: 7,
+    borderLeftWidth: 2,
+    borderLeftColor: "#cbd5e1",
+    marginTop: 7,
+  },
+  commentLabel: { fontSize: 6, fontFamily: "Helvetica-Bold", color: C.textMuted, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.5 },
+  commentText: { fontSize: 7.5, color: C.textMid, lineHeight: 1.4 },
 });
 
 /* ── Helpers ── */
@@ -426,10 +475,55 @@ function Td({ w, center, bold, muted, color, children }: { w: number; center?: b
   );
 }
 
+function IndicadorCard({ item }: { item: IndicadorAvanceItem }) {
+  const tl = tlStyle(item.traffic_light);
+  const esContrib = item.tipo === "contribucion";
+  return (
+    <View style={[s.cardItem, { borderLeftColor: tl.dot }]} wrap={false}>
+      {/* Cabecera: área + tipo */}
+      <View style={s.cardHeader}>
+        <Text style={s.cardArea}>{item.areaName}</Text>
+        <View style={[s.tipoBadge, {
+          backgroundColor: esContrib ? "#eff6ff" : "#f5f3ff",
+          borderColor:     esContrib ? "#bfdbfe" : "#ddd6fe",
+        }]}>
+          <Text style={[s.tipoBadgeText, { color: esContrib ? "#1d4ed8" : "#7c3aed" }]}>
+            {esContrib ? "Reto del área" : "Ind. propio"}
+          </Text>
+        </View>
+      </View>
+
+      {/* Indicador + reto */}
+      <Text style={s.cardIndicador}>{item.indicador}</Text>
+      {item.reto ? <Text style={s.cardReto}>{item.reto}</Text> : null}
+
+      {/* Barra de progreso + estado */}
+      <View style={s.cardProgress}>
+        <View style={s.progTrackLg}>
+          <View style={[s.progFillLg, {
+            width: `${Math.min(100, item.percent ?? 0)}%`,
+            backgroundColor: item.percent !== null ? barCol(item.percent) : C.grayBorder,
+          }]} />
+        </View>
+        <Text style={s.progPctLg}>{item.percent !== null ? `${item.percent}%` : "—"}</Text>
+        <TlBadge tl={item.traffic_light} />
+      </View>
+
+      {/* Comentario */}
+      {item.comment ? (
+        <View style={s.commentBox}>
+          <Text style={s.commentLabel}>Comentario de avance</Text>
+          <Text style={s.commentText}>{item.comment}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /* ── Document ── */
 
 export function ReportePDF({ data }: ReportePDFProps) {
-  const { year, generatedAt, kpis, macroSummary, areaBreakdown } = data;
+  const { year, generatedAt, kpis, macroSummary, areaBreakdown, indicadorAvances } = data;
 
   return (
     <Document title={`Reporte Indicadores VAC ${year}`} author="Vicerrectoría Académica" creator="Indicadores VAC">
@@ -639,6 +733,47 @@ export function ReportePDF({ data }: ReportePDFProps) {
                     <TlBadge tl={a.tl} />
                   </View>
                 </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Pie */}
+        <View style={s.footer}>
+          <Text style={s.footerTxt}>Indicadores VAC · Año {year}</Text>
+          <Text style={s.footerTxt}>Generado el {generatedAt} — Documento de uso interno · Vicerrectoría Académica</Text>
+        </View>
+
+      </Page>
+
+      {/* ══════════════ AVANCES POR INDICADOR ══════════════ */}
+      <Page size="A4" style={s.contentPage}>
+
+        <View style={s.section}>
+          <SecTitle n="4" title="Avances por Indicador" />
+
+          {/* Leyenda de colores */}
+          <View style={{ flexDirection: "row", marginBottom: 10, gap: 12 }}>
+            {[
+              { dot: C.emerald, label: "Completado" },
+              { dot: C.amber,   label: "En riesgo" },
+              { dot: C.red,     label: "Crítico" },
+              { dot: C.textLight, label: "Sin reporte" },
+            ].map((l) => (
+              <View key={l.label} style={{ flexDirection: "row", alignItems: "center" }}>
+                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: l.dot, marginRight: 4 }} />
+                <Text style={{ fontSize: 7, color: C.textMuted }}>{l.label}</Text>
+              </View>
+            ))}
+            <Text style={{ fontSize: 7, color: C.textLight, marginLeft: 4 }}>· Ordenado de mayor a menor avance</Text>
+          </View>
+
+          {indicadorAvances.length === 0 ? (
+            <Text style={{ fontSize: 8, color: C.textMuted }}>Sin avances registrados para {year}.</Text>
+          ) : (
+            <View>
+              {indicadorAvances.map((item) => (
+                <IndicadorCard key={item.id} item={item} />
               ))}
             </View>
           )}

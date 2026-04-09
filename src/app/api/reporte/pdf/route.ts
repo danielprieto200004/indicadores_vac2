@@ -4,7 +4,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ReportePDF } from "@/components/admin/reporte/pdf-document";
-import type { MacroSummaryItem, AreaBreakdownItem } from "@/components/admin/reporte/pdf-document";
+import type { MacroSummaryItem, AreaBreakdownItem, IndicadorAvanceItem } from "@/components/admin/reporte/pdf-document";
 
 type TrafficLight = "verde" | "naranja" | "rojo";
 
@@ -13,6 +13,7 @@ type Latest = {
   percent: number | null;
   traffic_light: TrafficLight | null;
   current_value: number | null;
+  comment: string | null;
 };
 
 type OwnLatest = {
@@ -20,17 +21,22 @@ type OwnLatest = {
   percent: number | null;
   traffic_light: TrafficLight | null;
   current_value: number | null;
+  comment: string | null;
 };
 
 type ContribRow = {
   id: string;
   macro_id: string;
   area_id: string;
+  indicador_area: string;
+  reto_area: string;
 };
 
 type OwnRow = {
   id: string;
   area_id: string;
+  indicador_area: string;
+  reto_area: string;
 };
 
 type MacroRow = {
@@ -69,12 +75,12 @@ export async function GET(request: NextRequest) {
         .order("created_at", { ascending: false }),
       supabase
         .from("area_contributions")
-        .select("id,macro_id,area_id")
+        .select("id,macro_id,area_id,indicador_area,reto_area")
         .eq("active", true)
         .eq("year", selectedYear),
       supabase
         .from("area_own_indicators")
-        .select("id,area_id")
+        .select("id,area_id,indicador_area,reto_area")
         .eq("active", true)
         .eq("year", selectedYear),
     ]);
@@ -91,13 +97,13 @@ export async function GET(request: NextRequest) {
     ids.length
       ? supabase
           .from("vw_contribution_latest")
-          .select("contribution_id,percent,traffic_light,current_value")
+          .select("contribution_id,percent,traffic_light,current_value,comment")
           .in("contribution_id", ids)
       : { data: [] as Latest[] },
     ownIds.length
       ? supabase
           .from("vw_area_own_latest")
-          .select("indicator_id,percent,traffic_light,current_value")
+          .select("indicator_id,percent,traffic_light,current_value,comment")
           .in("indicator_id", ownIds)
       : { data: [] as OwnLatest[] },
   ]);
@@ -189,6 +195,38 @@ export async function GET(request: NextRequest) {
     .filter((a): a is AreaBreakdownItem => a !== null)
     .sort((a, b) => a.pct - b.pct);
 
+  /* Indicadores con avances (comentarios), ordenados de mayor a menor % */
+  const indicadorAvances: IndicadorAvanceItem[] = [
+    ...contribRows.map((c) => {
+      const latest = latestById.get(c.id);
+      const area = areaList.find((a) => a.id === c.area_id);
+      return {
+        id: c.id,
+        areaName: area?.name ?? "—",
+        tipo: "contribucion" as const,
+        indicador: c.indicador_area,
+        reto: c.reto_area,
+        percent: latest?.percent ?? null,
+        traffic_light: (latest?.traffic_light ?? null) as TrafficLight | null,
+        comment: latest?.comment ?? null,
+      };
+    }),
+    ...ownRows.map((r) => {
+      const latest = ownLatestById.get(r.id);
+      const area = areaList.find((a) => a.id === r.area_id);
+      return {
+        id: r.id,
+        areaName: area?.name ?? "—",
+        tipo: "propio" as const,
+        indicador: r.indicador_area,
+        reto: r.reto_area,
+        percent: latest?.percent ?? null,
+        traffic_light: (latest?.traffic_light ?? null) as TrafficLight | null,
+        comment: latest?.comment ?? null,
+      };
+    }),
+  ].sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1));
+
   /* Generate PDF */
   const generatedAt = new Date().toLocaleString("es-CO", {
     year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
@@ -202,6 +240,7 @@ export async function GET(request: NextRequest) {
         kpis: { totalAreas, totalMacros, total, totalCompleted, totalRisk, totalCritical, totalNoUpdate, completionPct, contribCompleted, totalContrib, contribPct, ownCompleted, totalOwn, ownPct },
         macroSummary,
         areaBreakdown,
+        indicadorAvances,
       },
     }),
   );
