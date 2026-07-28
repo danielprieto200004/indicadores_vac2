@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 
 const schema = z.object({
   email: z.string().email("Ingresa un correo válido"),
-  password: z.string().min(8, "Mínimo 8 caracteres"),
+  password: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -23,6 +23,8 @@ export function LoginForm({ next = "/app" }: { next?: string }) {
 
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -32,6 +34,24 @@ export function LoginForm({ next = "/app" }: { next?: string }) {
 
   async function onSubmit(values: FormValues) {
     setServerError(null);
+
+    if (isForgotPassword) {
+      const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+      if (error) {
+        setServerError(error.message);
+        return;
+      }
+      setResetSent(true);
+      return;
+    }
+
+    if (!values.password || values.password.length < 8) {
+      setServerError("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email: values.email,
       password: values.password,
@@ -56,19 +76,50 @@ export function LoginForm({ next = "/app" }: { next?: string }) {
         ) : null}
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="password">Contraseña</Label>
-        <Input id="password" type="password" {...form.register("password")} />
-        {form.formState.errors.password?.message ? (
-          <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
-        ) : null}
-      </div>
+      {!isForgotPassword && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Contraseña</Label>
+            <button
+              type="button"
+              onClick={() => setIsForgotPassword(true)}
+              className="text-xs text-primary hover:underline"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
+          <Input id="password" type="password" {...form.register("password")} />
+          {form.formState.errors.password?.message ? (
+            <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
+          ) : null}
+        </div>
+      )}
 
       {serverError ? <p className="text-sm text-destructive">{serverError}</p> : null}
+      
+      {resetSent && (
+        <div className="p-3 bg-green-50 text-green-700 rounded-md text-sm">
+          Revisa tu correo para encontrar el enlace de recuperación.
+        </div>
+      )}
 
       <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-        {form.formState.isSubmitting ? "Ingresando..." : "Ingresar"}
+        {form.formState.isSubmitting 
+          ? (isForgotPassword ? "Enviando..." : "Ingresando...") 
+          : (isForgotPassword ? "Enviar enlace de recuperación" : "Ingresar")}
       </Button>
+
+      {isForgotPassword && (
+        <div className="text-center mt-4">
+          <button
+            type="button"
+            onClick={() => { setIsForgotPassword(false); setResetSent(false); setServerError(null); }}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Volver a iniciar sesión
+          </button>
+        </div>
+      )}
     </form>
   );
 }
